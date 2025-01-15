@@ -43,7 +43,7 @@ db/migrations/up: confirm
 	migrate -path ./cmd/migrate/migrations -database ${DB_ADDR} up
 
 .PHONY: db/migrations/down
-db/migrations/up: confirm
+db/migrations/down: confirm
 	@echo 'Running up migrations...'
 	migrate -path ./cmd/migrate/migrations -database ${DB_ADDR} down
 
