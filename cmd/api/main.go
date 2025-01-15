@@ -4,6 +4,9 @@ import (
 	"log"
 
 	"github.com/devphaseX/mingle.git/internal/env"
+	"github.com/devphaseX/mingle.git/internal/store"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -11,8 +14,11 @@ func main() {
 		addr: env.GetString("ADDR", ":8080"),
 	}
 
+	store := store.NewPostgressStorage(nil)
+
 	app := &application{
 		config: cfg,
+		store:  store,
 	}
 
 	mux := app.mount()
