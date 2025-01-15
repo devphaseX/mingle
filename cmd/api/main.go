@@ -10,9 +10,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var version = "0.0.1"
+
 func main() {
 	cfg := config{
 		addr: env.GetString("ADDR", ":8080"),
+		env:  env.GetString("ENV", "development"),
 		db: dbConfig{
 			dsn:          env.GetString("DB_ADDR", "postgres://mingle:adminpassword@localhost/mingle?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
