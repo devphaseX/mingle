@@ -23,6 +23,9 @@ func main() {
 
 	db, err := db.New(cfg.db.dsn, cfg.db.maxOpenConns, cfg.db.maxIdleConns, cfg.db.maxIdleTime)
 
+	defer db.Close()
+
+	log.Println("database connection pool established")
 	if err != nil {
 		log.Panic(err)
 	}
