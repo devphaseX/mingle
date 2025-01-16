@@ -135,7 +135,13 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 	err = app.store.Posts.UpdateByUser(ctx, post)
 
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			app.errorResponse(w, r, http.StatusConflict, nil)
+		default:
+			app.serverErrorResponse(w, r, err)
+
+		}
 		return
 	}
 	app.writeJSON(w, http.StatusOK, envelope{"post": post}, nil)
