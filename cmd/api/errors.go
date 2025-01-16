@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/devphaseX/mingle.git/internal/validator"
 )
 
 func (app *application) errorResponse(
@@ -18,7 +21,7 @@ func (app *application) errorResponse(
 }
 
 func (app *application) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
-	fmt.Println(err)
+	fmt.Printf("internal server error: %s path: %s error: %s", r.Method, r.URL.Path, err)
 
 	message := "the server encountered a problem and could not process your request"
 	app.errorResponse(w, r, http.StatusInternalServerError, message)
@@ -30,6 +33,13 @@ func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	fmt.Printf("bad request error: %s path: %s error: %s", r.Method, r.URL.Path, err)
+	var validationErrors *validator.ValidationErrors
+
+	if errors.As(err, &validationErrors) {
+		app.errorResponse(w, r, http.StatusBadRequest, validationErrors.FieldErrors())
+		return
+	}
 	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
 }
 

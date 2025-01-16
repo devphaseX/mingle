@@ -8,7 +8,11 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/devphaseX/mingle.git/internal/validator"
 )
+
+var Validate = validator.New()
 
 type envelope map[string]any
 
