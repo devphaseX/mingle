@@ -34,10 +34,7 @@ func (s *FollowerStore) FollowUser(ctx context.Context, follower *Follower) erro
 		if errors.As(err, &pgErr) {
 			// SQL State "23505" means unique_violation
 			if pgErr.Code == "23505" {
-				return errors.Join(
-					fmt.Errorf("user %d is already followed by user %d", follower.UserID, follower.FollowerID),
-					ErrUserAlreadyFollowed,
-				)
+				return ErrConflict
 			}
 		}
 		return fmt.Errorf("failed to follow user: %w", err)

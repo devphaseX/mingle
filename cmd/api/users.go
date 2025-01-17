@@ -37,12 +37,12 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 
 	if err != nil {
 		switch {
-		case errors.Is(err, store.ErrUserAlreadyFollowed):
-			app.errorResponse(w, r, http.StatusConflict, err.Error())
-
+		case errors.Is(err, store.ErrConflict):
+			app.errorResponse(w, r, http.StatusConflict, "following this user already")
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
+
 		return
 	}
 

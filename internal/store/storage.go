@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	ErrNotFound            = errors.New("resource not found")
-	ErrUserAlreadyFollowed = errors.New("user already followed")
-	QueryTimeoutDuration   = time.Second * 5
+	ErrNotFound          = errors.New("resource not found")
+	ErrConflict          = errors.New("resource already exist")
+	QueryTimeoutDuration = time.Second * 5
 )
 
 type Storage struct {
@@ -42,4 +42,17 @@ func NewPostgressStorage(db *sql.DB) Storage {
 		Comments:  &CommentStore{db},
 		Followers: &FollowerStore{db},
 	}
+}
+
+type UserFriendlyError struct {
+	UserMessage string
+	InternalErr error
+}
+
+func (e *UserFriendlyError) Error() string {
+	return e.UserMessage
+}
+
+func (e *UserFriendlyError) Unwrap() error {
+	return e.InternalErr
 }
