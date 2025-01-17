@@ -53,12 +53,12 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
-	followedUser := getUserFromCtx(r)
+	unfollowedUser := getUserFromCtx(r)
 	var userId int64 = 1
 
 	ctx := context.Background()
 
-	err := app.store.Followers.UnFollowUser(ctx, followedUser.ID, userId)
+	err := app.store.Followers.UnFollowUser(ctx, unfollowedUser.ID, userId)
 
 	if err != nil {
 		switch {
@@ -86,9 +86,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.Background()
-
-		user, err := app.store.Users.GetById(ctx, userId)
+		user, err := app.store.Users.GetById(r.Context(), userId)
 
 		if err != nil {
 			switch {
@@ -100,7 +98,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx = context.WithValue(ctx, userContextKey, user)
+		ctx := context.WithValue(r.Context(), userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
