@@ -20,6 +20,13 @@ type ValidationErrors struct {
 	errors map[string][]string
 }
 
+func (v *ValidationErrors) AddFieldError(key, message string) {
+	if v.errors == nil {
+		v.errors = make(map[string][]string)
+	}
+	v.errors[key] = append(v.errors[key], message)
+}
+
 func (v *ValidationErrors) Error() string {
 	var builder strings.Builder
 
@@ -66,19 +73,22 @@ func New() *Validator {
 	}
 }
 
-func (v *Validator) Struct(val any) *ValidationErrors {
+func (v *Validator) Struct(val any, existingValidationErrors ...*ValidationErrors) *ValidationErrors {
 	if err := v.Validate.Struct(val); err != nil {
-		validationErrors := ValidationErrors{
-			errors: map[string][]string{},
+		var validationErrors *ValidationErrors
+		if len(existingValidationErrors) != 0 {
+			validationErrors = existingValidationErrors[0]
+		} else {
+			validationErrors = &ValidationErrors{}
 		}
 
 		for _, entry := range err.(validator.ValidationErrors) {
 			fieldName := entry.Field()
 			translatedError := entry.Translate(v.trans)
-			validationErrors.errors[fieldName] = append(validationErrors.errors[fieldName], translatedError)
+			validationErrors.AddFieldError(fieldName, translatedError)
 		}
 
-		return &validationErrors
+		return validationErrors
 	}
 
 	return nil

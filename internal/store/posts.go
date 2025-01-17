@@ -20,7 +20,18 @@ type Post struct {
 	Version   int        `json:"version"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
-	Comments  []*Comment `json:"comments"`
+	Comments  []*Comment `json:"comments,omitempty"`
+}
+
+type PostWithMetadata struct {
+	Post
+	User struct {
+		ID        int64  `json:"id"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Username  string `json:"username"`
+	}
+	CommentCount int `json:"comments_count"`
 }
 
 type PostStore struct {
@@ -124,4 +135,70 @@ func (s *PostStore) UpdateByUser(ctx context.Context, post *Post) error {
 
 	}
 	return nil
+}
+
+func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, paginateQuery PaginateQueryFilter) ([]*PostWithMetadata, Metadata, error) {
+	query := fmt.Sprintf(`
+			    SELECT count(p.id) OVER (), p.id, p.title, p.content,
+				p.user_id, p.created_at,p.version,p.tags, count(c.id) as comments_count,
+			 	users.first_name,users.last_name, users.username,
+				users.id as current_user_id  FROM posts p
+				INNER JOIN users ON p.user_id =  users.id
+				LEFT JOIN followers f ON f.follower_id = users.id
+				LEFT JOIN comments c ON p.id = c.post_id
+                WHERE p.user_id = $1 or p.user_id = f.user_id
+				GROUP BY p.id, users.id
+				ORDER BY %s %s
+				LIMIT $2 OFFSET $3
+				;
+	`, paginateQuery.SortColumn(), paginateQuery.SortDirection())
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+
+	defer cancel()
+	rows, err := s.db.QueryContext(
+		ctx,
+		query,
+		userID,
+		paginateQuery.Limit(),
+		paginateQuery.Offset())
+
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+
+	var posts = []*PostWithMetadata{}
+	var totalRecords int
+	for rows.Next() {
+		var post PostWithMetadata
+
+		var tagsJSON []byte
+
+		rows.Scan(
+			&totalRecords,
+			&post.ID,
+			&post.Title,
+			&post.Context,
+			&post.UserID,
+			&post.CreatedAt,
+			&post.Version,
+			&tagsJSON,
+			&post.CommentCount,
+			&post.User.FirstName,
+			&post.User.LastName,
+			&post.User.Username,
+			&post.User.ID,
+		)
+
+		if tagsJSON != nil {
+			if err := json.Unmarshal(tagsJSON, &post.Tags); err != nil {
+				return nil, Metadata{}, fmt.Errorf("failed to unmarshal tags: %v", err)
+			}
+		}
+
+		posts = append(posts, &post)
+	}
+
+	metadata := calculateMetadata(totalRecords, paginateQuery.Page, paginateQuery.PageSize)
+	return posts, metadata, nil
 }
