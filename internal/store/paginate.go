@@ -1,7 +1,6 @@
 package store
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -15,6 +14,7 @@ type PaginateQueryFilter struct {
 	PageSize int    `validate:"gte=1,lte=100"` // Number of items per page (default: 20)
 	Sort     string // Sort field and direction (e.g., "created_at" or "-created_at")
 
+	Filters      Filterable
 	SortSafelist []string // List of allowed sort fields
 	*validator.Validator
 }
@@ -58,10 +58,19 @@ func (q *PaginateQueryFilter) Parse(r *http.Request) error {
 		}
 	}
 
-	fmt.Println("query parser", q)
 	// Validate the struct using the validator
 	if err := q.Validator.Struct(q, &filterValidationErrors); err != nil {
 		return err
+	}
+
+	if q.Filters != nil {
+		if err := q.Filters.ParseFilters(r); err != nil {
+			return err
+		}
+
+		if err := q.Validator.Struct(q.Filters, &filterValidationErrors); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -139,19 +139,25 @@ func (s *PostStore) UpdateByUser(ctx context.Context, post *Post) error {
 
 func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, paginateQuery PaginateQueryFilter) ([]*PostWithMetadata, Metadata, error) {
 	query := fmt.Sprintf(`
-			    SELECT count(p.id) OVER (), p.id, p.title, p.content,
-				p.user_id, p.created_at,p.version,p.tags, count(c.id) as comments_count,
-			 	users.first_name,users.last_name, users.username,
-				users.id as current_user_id  FROM posts p
-				INNER JOIN users ON p.user_id =  users.id
-				LEFT JOIN followers f ON f.follower_id = users.id
-				LEFT JOIN comments c ON p.id = c.post_id
-                WHERE p.user_id = $1 or p.user_id = f.user_id
-				GROUP BY p.id, users.id
-				ORDER BY %s %s
-				LIMIT $2 OFFSET $3
-				;
-	`, paginateQuery.SortColumn(), paginateQuery.SortDirection())
+    		SELECT count(p.id) OVER (), p.id, p.title, p.content,
+    		p.user_id, p.created_at, p.version, p.tags, count(c.id) as comments_count,
+    		users.first_name, users.last_name, users.username,
+    		users.id as current_user_id
+    		FROM posts p
+    		INNER JOIN users ON p.user_id = users.id
+    		LEFT JOIN followers f ON f.follower_id = users.id
+    		LEFT JOIN comments c ON p.id = c.post_id
+    		WHERE (p.user_id = $1 OR p.user_id = f.user_id) AND
+    		(
+    		    ($4::text IS NULL OR p.title ILIKE '%%' || $4 || '%%') AND
+    		    ($4::text IS NULL OR p.content ILIKE '%%' || $4 || '%%') AND
+                ($5::text[] IS NULL OR p.tags ?| $5::text[])
+    		)
+    		GROUP BY p.id, users.id
+    		ORDER BY %s %s
+    		LIMIT $2 OFFSET $3`, paginateQuery.SortColumn(), paginateQuery.SortDirection())
+
+	filter := paginateQuery.Filters.(*GetUserFeedFilter)
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 
@@ -161,7 +167,10 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, paginateQuery
 		query,
 		userID,
 		paginateQuery.Limit(),
-		paginateQuery.Offset())
+		paginateQuery.Offset(),
+		filter.Search,
+		pq.Array(filter.Tags),
+	)
 
 	if err != nil {
 		return nil, Metadata{}, err
@@ -169,6 +178,7 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, paginateQuery
 
 	var posts = []*PostWithMetadata{}
 	var totalRecords int
+
 	for rows.Next() {
 		var post PostWithMetadata
 
@@ -200,5 +210,6 @@ func (s *PostStore) GetUserFeed(ctx context.Context, userID int64, paginateQuery
 	}
 
 	metadata := calculateMetadata(totalRecords, paginateQuery.Page, paginateQuery.PageSize)
+
 	return posts, metadata, nil
 }

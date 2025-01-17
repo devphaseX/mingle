@@ -8,11 +8,14 @@ import (
 
 func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	filter := &store.GetUserFeedFilter{}
+
 	fq := &store.PaginateQueryFilter{
 		Page:         1,
 		PageSize:     20,
 		Sort:         "created_at",
 		SortSafelist: []string{"created_at", "-created_at"},
+		Filters:      filter,
 	}
 
 	if err := fq.Parse(r); err != nil {
