@@ -61,14 +61,14 @@ type UserStore struct {
 
 func (s *UserStore) Create(ctx context.Context, user *User, tx *sql.Tx) error {
 	query := `
-		INSERT INTO users (username, password, email) VALUES ($1, $2, $3)
+		INSERT INTO users (first_name, last_name, username, password_hash, email) VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at
 	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	args := []any{user.Username, user.Password.hash, user.Email}
+	args := []any{user.FirstName, user.LastName, user.Username, user.Password.hash, user.Email}
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
 		var pgErr *pq.Error
