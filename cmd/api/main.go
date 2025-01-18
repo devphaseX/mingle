@@ -10,12 +10,32 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var version = "0.0.1"
+var version = "0.0.2"
 
+//	@title			Mingle Socials API
+//	@version		0.0.1
+//	@description	API FOR gopher social.
+//	@termsOfService	http://swagger.io/terms/
+
+//	@contact.name	API Support
+//	@contact.url	http://www.swagger.io/support
+//	@contact.email	support@swagger.io
+
+//	@license.name	Apache 2.0
+//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+
+//	@host		localhost:8080
+//	@BasePath	/v1
+
+// @securityDefinitions.apikey	Bearer
+// @in							header
+// @name						Authorization
+// @description				Bearer token authentication
 func main() {
 	cfg := config{
-		addr: env.GetString("ADDR", ":8080"),
-		env:  env.GetString("ENV", "development"),
+		apiURL: env.GetString("EXTERNAL_LINKS", "localhost:8080"),
+		addr:   env.GetString("ADDR", ":8080"),
+		env:    env.GetString("ENV", "development"),
 		db: dbConfig{
 			dsn:          env.GetString("DB_ADDR", "postgres://mingle:adminpassword@localhost/mingle?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),

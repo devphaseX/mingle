@@ -14,6 +14,20 @@ var (
 	userContextKey = userKey("user")
 )
 
+// GetUser godoc
+//
+//	@Summary		Fetches a user profile
+//	@Description	Fetch a user profile by id
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int						true	"User ID"
+//	@Success		200	{object}	object{user=store.User}	"Success response with user data"
+//	@Failure		400	{object}	object{error=string}	"Bad request"
+//	@Failure		404	{object}	object{error=string}	"User not found"
+//	@Failure		500	{object}	object{error=string}	"Internal server error"
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id} [get]
 func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromCtx(r)
 	err := app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
@@ -22,6 +36,19 @@ func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// FollowUser godoc
+//
+//	@Summary		Follow a user
+//	@Description	Follow a user by their ID. The follower ID is hardcoded to 1 for this example.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int										true	"User ID of the user to follow"
+//	@Success		201	{object}	object{follower=store.Follower}			"Successfully followed the user"
+//	@Failure		409	{object}	object{error=object{message=string}}	"Conflict - Already following this user"
+//	@Failure		500	{object}	object{error=object{message=string}}	"Internal server error"
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followedUser := getUserFromCtx(r)
 	var userId int64 = 1
@@ -52,6 +79,19 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// UnfollowUser godoc
+//
+//	@Summary		Unfollow a user
+//	@Description	Unfollow a user by their ID. The follower ID is hardcoded to 1 for this example.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path	int	true	"User ID of the user to unfollow"
+//	@Success		204	"Successfully unfollowed the user"
+//	@Failure		404	{object}	object{error=object{message=string}}	"Not Found - No follow relationship found"
+//	@Failure		500	{object}	object{error=object{message=string}}	"Internal server error"
+//	@Security		ApiKeyAuth
+//	@Router			/users/{id}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	unfollowedUser := getUserFromCtx(r)
 	var userId int64 = 1

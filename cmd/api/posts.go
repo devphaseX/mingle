@@ -21,6 +21,20 @@ type createPostForm struct {
 	Tags    []string `json:"tags"`
 }
 
+// CreatePost godoc
+//
+//	@Summary		Creates a post
+//	@Description	Creates a post
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		createPostForm	true	"Post payload"
+//	@Success		201		{object}	object{post=store.Post}
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts [post]
 func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		form createPostForm
@@ -62,6 +76,19 @@ func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetPostByID godoc
+//
+//	@Summary		Get a post by ID
+//	@Description	Fetch a post by its ID, including its associated comments.
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int						true	"Post ID"
+//	@Success		200	{object}	object{post=store.Post}	"Successfully fetched post with comments"
+//	@Failure		404	{object}	object{error=string}	"Not Found - Post not found"
+//	@Failure		500	{object}	object{error=string}	"Internal server error"
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [get]
 func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Request) {
 	post := getPostFromCtx(r)
 	comments, err := app.store.Comments.GetByPostID(r.Context(), post.ID)
@@ -80,6 +107,19 @@ func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// DeletePost godoc
+//
+//	@Summary		Deletes a post
+//	@Description	Delete a post by ID
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"Post ID"
+//	@Success		204	{object}	string
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [delete]
 func (app *application) removePostByIdHandler(w http.ResponseWriter, r *http.Request) {
 	var (
 		post         = getPostFromCtx(r)
@@ -107,6 +147,22 @@ type updatePostForm struct {
 	Content *string `json:"content" validate:"omitempty,max=100"`
 }
 
+// UpdatePost godoc
+//
+//	@Summary		Updates a post
+//	@Description	Updates a post by ID
+//	@Tags			posts
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int				true	"Post ID"
+//	@Param			payload	body		updatePostForm	true	"Post data"
+//	@Success		200		{object}	object{follower=store.Post}
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/posts/{id} [patch]
 func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request) {
 	post := getPostFromCtx(r)
 
