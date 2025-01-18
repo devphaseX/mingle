@@ -6,6 +6,7 @@ import (
 	"github.com/devphaseX/mingle.git/internal/db"
 	"github.com/devphaseX/mingle.git/internal/env"
 	"github.com/devphaseX/mingle.git/internal/store"
+	"go.uber.org/zap"
 
 	_ "github.com/lib/pq"
 )
@@ -44,19 +45,26 @@ func main() {
 		},
 	}
 
+	//Logger
+
+	logger := zap.Must(zap.NewProduction()).Sugar()
+	defer logger.Sync()
+	//Database
+
 	db, err := db.New(cfg.db.dsn, cfg.db.maxOpenConns, cfg.db.maxIdleConns, cfg.db.maxIdleTime)
 
 	defer db.Close()
 
-	log.Println("database connection pool established")
+	logger.Info("database connection pool established")
 	if err != nil {
-		log.Panic(err)
+		logger.Fatal(err)
 	}
 
 	store := store.NewPostgressStorage(db)
 	app := &application{
 		config: cfg,
 		store:  store,
+		logger: logger,
 	}
 
 	mux := app.mount()

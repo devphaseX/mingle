@@ -21,19 +21,22 @@ func (app *application) errorResponse(
 }
 
 func (app *application) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
-	fmt.Printf("internal server error: %s path: %s error: %s", r.Method, r.URL.Path, err)
+	app.logger.Errorw("interal server error", "method", r.Method, "path", r.URL.Path, "error", err)
 
 	message := "the server encountered a problem and could not process your request"
 	app.errorResponse(w, r, http.StatusInternalServerError, message)
 }
 
 func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request) {
+	app.logger.Errorf("not found error", "method", r.Method, "path", r.URL.Path)
+
 	message := "the requested resource could not be found"
 	app.errorResponse(w, r, http.StatusNotFound, message)
 }
 
 func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
-	fmt.Printf("bad request error: %s path: %s error: %s", r.Method, r.URL.Path, err)
+	app.logger.Warnf("bad request error", "method", r.Method, "path", r.URL.Path, "error", err)
+
 	var validationErrors *validator.ValidationErrors
 
 	if errors.As(err, &validationErrors) {
@@ -53,6 +56,8 @@ func (app *application) failedValidationResponse(w http.ResponseWriter, r *http.
 }
 
 func (app *application) editConflictResponse(w http.ResponseWriter, r *http.Request) {
+	app.logger.Errorf("conflict response", "method", r.Method, "path", r.URL.Path)
+
 	message := "unable to update the record due to an edit conflict, please try again"
 	app.errorResponse(w, r, http.StatusConflict, message)
 }
