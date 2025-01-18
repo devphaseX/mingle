@@ -10,6 +10,8 @@ import (
 var (
 	ErrNotFound          = errors.New("resource not found")
 	ErrConflict          = errors.New("resource already exist")
+	ErrDuplicateEmail    = UserFriendlyError{UserMessage: "email already taken", InternalErr: ErrConflict}
+	ErrDuplicateUsername = UserFriendlyError{UserMessage: "username already taken", InternalErr: ErrConflict}
 	QueryTimeoutDuration = time.Second * 5
 )
 
@@ -22,8 +24,10 @@ type Storage struct {
 		GetUserFeed(context.Context, int64, PaginateQueryFilter) ([]*PostWithMetadata, Metadata, error)
 	}
 	Users interface {
-		Create(context.Context, *User) error
+		Create(context.Context, *User, *sql.Tx) error
 		GetById(context.Context, int64) (*User, error)
+		CreateAndInvite(ctx context.Context, user *User, invitationExp time.Duration, token string) error
+		createUserInvitation(ctx context.Context, tx *sql.Tx, token string, exp time.Time, userId int64) error
 	}
 
 	Comments interface {
@@ -50,10 +54,25 @@ type UserFriendlyError struct {
 	InternalErr error
 }
 
-func (e *UserFriendlyError) Error() string {
+func (e UserFriendlyError) Error() string {
 	return e.UserMessage
 }
 
-func (e *UserFriendlyError) Unwrap() error {
+func (e UserFriendlyError) Unwrap() error {
 	return e.InternalErr
+}
+
+func withTx(db *sql.DB, ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+
+	if err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
 }

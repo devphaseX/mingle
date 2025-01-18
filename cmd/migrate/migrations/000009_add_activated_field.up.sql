@@ -1,0 +1,9 @@
+ALTER TABLE users
+ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users
+ADD COLUMN email_verified_at TIMESTAMP
+WITH
+    TIME ZONE;
+
+ALTER TABLE users ADD CONSTRAINT user_username_unique UNIQUE (username);
