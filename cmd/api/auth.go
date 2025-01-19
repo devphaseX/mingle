@@ -49,7 +49,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	err := app.store.Users.CreateAndInvite(r.Context(), user, app.config.mail.exp, hashToken)
 
 	if err != nil {
-		var friendlyError *store.UserFriendlyError
+		var friendlyError store.UserFriendlyError
 		if errors.As(err, &friendlyError) {
 			switch {
 			case errors.Is(friendlyError.InternalErr, store.ErrConflict):
@@ -57,6 +57,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 			default:
 				app.serverErrorResponse(w, r, err)
 			}
+			return
 		}
 		app.serverErrorResponse(w, r, err)
 		return

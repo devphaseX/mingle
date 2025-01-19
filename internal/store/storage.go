@@ -8,11 +8,12 @@ import (
 )
 
 var (
-	ErrNotFound          = errors.New("resource not found")
-	ErrConflict          = errors.New("resource already exist")
-	ErrDuplicateEmail    = UserFriendlyError{UserMessage: "email already taken", InternalErr: ErrConflict}
-	ErrDuplicateUsername = UserFriendlyError{UserMessage: "username already taken", InternalErr: ErrConflict}
-	QueryTimeoutDuration = time.Second * 5
+	ErrNotFound             = errors.New("resource not found")
+	ErrConflict             = errors.New("resource already exist")
+	ErrUserAlreadyActivated = errors.New("user already activated")
+	ErrDuplicateEmail       = UserFriendlyError{UserMessage: "email already taken", InternalErr: ErrConflict}
+	ErrDuplicateUsername    = UserFriendlyError{UserMessage: "username already taken", InternalErr: ErrConflict}
+	QueryTimeoutDuration    = time.Second * 5
 )
 
 type Storage struct {
@@ -26,6 +27,7 @@ type Storage struct {
 	Users interface {
 		Create(context.Context, *User, *sql.Tx) error
 		GetById(context.Context, int64) (*User, error)
+		Activate(context.Context, string) error
 		CreateAndInvite(ctx context.Context, user *User, invitationExp time.Duration, token string) error
 		createUserInvitation(ctx context.Context, tx *sql.Tx, token string, exp time.Time, userId int64) error
 	}

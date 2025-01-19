@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/devphaseX/mingle.git/internal/store"
+	"github.com/go-chi/chi/v5"
 )
 
 type userKey string
@@ -151,4 +152,23 @@ func getUserFromCtx(r *http.Request) *store.User {
 	}
 
 	return user
+}
+
+func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+
+	err := app.store.Users.Activate(r.Context(), token)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			app.errorResponse(w, r, http.StatusForbidden, "invalid or expired  token")
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+	}
+
+	if err := app.writeJSON(w, http.StatusNoContent, nil, nil); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }

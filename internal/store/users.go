@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -11,15 +13,15 @@ import (
 )
 
 type User struct {
-	ID              int64     `json:"id"`
-	FirstName       string    `json:"first_name"`
-	LastName        string    `json:"last_name"`
-	Username        string    `json:"username"`
-	Email           string    `json:"email,omitempty"`
-	IsActive        bool      `json:"is_active"`
-	EmailVerifiedAt time.Time `json:"email_verified_at,omitempty"`
-	Password        password  `json:"-"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              int64      `json:"id"`
+	FirstName       string     `json:"first_name"`
+	LastName        string     `json:"last_name"`
+	Username        string     `json:"username"`
+	Email           string     `json:"email,omitempty"`
+	IsActive        bool       `json:"is_active"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
+	Password        password   `json:"-"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type password struct {
@@ -73,7 +75,7 @@ func (s *UserStore) Create(ctx context.Context, user *User, tx *sql.Tx) error {
 	if err != nil {
 		var pgErr *pq.Error
 		// SQL State "23505" means unique_violation
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if errors.As(err, &pgErr) {
 			if pgErr.Constraint == "users_email_key" {
 				return ErrDuplicateEmail
 			} else if pgErr.Constraint == "users_username_key" {
@@ -121,7 +123,8 @@ func (s *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, token 
 	query := `INSERT INTO user_invitations(token, user_id, expiry)
 			 VALUES ($1, $2, $3)
 	`
-	_, err := s.db.ExecContext(ctx, query, pq.Array([]byte(token)), userId, exp)
+
+	_, err := tx.ExecContext(ctx, query, pq.Array([]byte(token)), userId, exp)
 
 	if err != nil {
 		return err
@@ -146,4 +149,109 @@ func (s *UserStore) CreateAndInvite(ctx context.Context, user *User, invitationE
 		return nil
 	})
 
+}
+
+func (s *UserStore) Activate(ctx context.Context, token string) error {
+	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		user, err := s.getUserFromInvitation(ctx, tx, token)
+
+		if err != nil {
+			return err
+		}
+
+		if user.EmailVerifiedAt != nil {
+			return ErrUserAlreadyActivated
+		}
+
+		user.IsActive = true
+		now := time.Now()
+		user.EmailVerifiedAt = &now
+
+		if err := s.update(ctx, user, tx); err != nil {
+			return err
+		}
+
+		return s.deleteUserInvitation(ctx, tx, token)
+	})
+}
+
+func (s *UserStore) getUserFromInvitation(ctx context.Context, tx *sql.Tx, token string) (*User, error) {
+
+	query := `SELECT u.id, u.first_name, u.last_name, u.email, u.is_active, u.email_verified_at FROM users u
+			  INNER JOIN user_invitations ui ON ui.user_id = u.id
+			  where ui.token = $1 and ui.expiry > $2
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+
+	defer cancel()
+
+	var (
+		user = &User{}
+	)
+	hash := sha256.Sum256([]byte(token))
+	hashToken := hex.EncodeToString(hash[:])
+	err := tx.QueryRowContext(ctx, query, hashToken, time.Now()).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.IsActive,
+		&user.EmailVerifiedAt,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return user, nil
+}
+
+func (app *UserStore) update(ctx context.Context, user *User, tx *sql.Tx) error {
+	query := `UPDATE users SET first_name = $1,
+	last_name = $2, email = $3, is_active = $4,
+	email_verified_at = $5 WHERE id = $6`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+
+	defer cancel()
+
+	args := []any{user.FirstName, user.LastName, user.Email, user.IsActive, user.EmailVerifiedAt}
+
+	res, err := tx.ExecContext(ctx, query, args...)
+
+	if err != nil {
+		return err
+	}
+
+	rowsCount, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsCount == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
+func (s *UserStore) deleteUserInvitation(ctx context.Context, tx *sql.Tx, token string) error {
+	query := `DELETE From user_invitations WHERE token = $1`
+
+	hash := sha256.Sum256([]byte(token))
+	hashToken := hex.EncodeToString(hash[:])
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+
+	defer cancel()
+
+	_, err := tx.ExecContext(ctx, query, hashToken)
+
+	return err
 }
