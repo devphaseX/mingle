@@ -39,7 +39,7 @@ func main() {
 		apiURL:      env.GetString("EXTERNAL_LINKS", "localhost:8080"),
 		addr:        env.GetString("ADDR", ":8080"),
 		env:         env.GetString("ENV", "development"),
-		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:4000"),
+		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:5173"),
 		db: dbConfig{
 			dsn:          env.GetString("DB_ADDR", "postgres://mingle:adminpassword@localhost/mingle?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
@@ -83,6 +83,7 @@ func main() {
 		cfg.mail.mailTrap.username,
 		cfg.mail.mailTrap.password,
 		cfg.mail.mailTrap.smtpPort,
+		logger,
 	)
 
 	app := &application{

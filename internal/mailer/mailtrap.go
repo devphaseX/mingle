@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"log"
 	"time"
 
+	"go.uber.org/zap"
 	gomail "gopkg.in/mail.v2"
 )
 
@@ -17,9 +17,10 @@ type MailTrapClient struct {
 	smtpPort        int
 	username        string
 	password        string
+	logger          *zap.SugaredLogger
 }
 
-func NewMailTrapClient(fromEmail, smtpAddr, smtpSandboxAddr, username, password string, smtpPort int) *MailTrapClient {
+func NewMailTrapClient(fromEmail, smtpAddr, smtpSandboxAddr, username, password string, smtpPort int, logger *zap.SugaredLogger) *MailTrapClient {
 	return &MailTrapClient{
 		smtpAddr:        smtpAddr,
 		smtpSandboxAddr: smtpSandboxAddr,
@@ -27,6 +28,7 @@ func NewMailTrapClient(fromEmail, smtpAddr, smtpSandboxAddr, username, password 
 		username:        username,
 		password:        password,
 		FromEmail:       fromEmail,
+		logger:          logger,
 	}
 }
 
@@ -72,12 +74,16 @@ func (c *MailTrapClient) Send(templateFile, username, email string, data any, is
 		err := dialer.DialAndSend(message)
 
 		if err == nil {
-			log.Printf("Email sent to %v", email)
+			if c.logger != nil {
+				c.logger.Infow("Email sent", "email", email)
+			}
 			return nil
 		}
 
-		log.Printf("Failed to send email to %v, attempt %d of %d", email, i+1, maxRetries)
-		log.Printf("Error: %v", err.Error())
+		if c.logger != nil {
+			c.logger.Errorw("Failed to send email", "email", email, "attempted", i+1, "trials", maxRetries)
+			c.logger.Errorf("Error: %v", err.Error())
+		}
 		//exponential backoff
 		time.Sleep(time.Second * time.Duration(i+1))
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -77,24 +78,27 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	//send mail
-	err = app.mailer.Send(
-		mailer.UserWelcomeTemplate,
-		vars.Username,
-		vars.Email,
-		vars,
-		app.config.env == "development",
-	)
 
-	if err != nil {
-		app.logger.Errorw("error sending welcome email", "error", err)
+	go func() {
+		err := app.mailer.Send(
+			mailer.UserWelcomeTemplate,
+			vars.Username,
+			vars.Email,
+			vars,
+			app.config.env == "development",
+		)
 
-		//rollback user creation if email fails (SAGA pattern)
-		if err := app.store.Users.Delete(r.Context(), user.ID); err != nil {
-			app.logger.Errorw("error deleting user", "error", err)
+		if err != nil {
+			app.logger.Errorw("error sending welcome email", "error", err)
+
+			ctx := context.Background()
+			//rollback user creation if email fails (SAGA pattern)
+			if err := app.store.Users.Delete(ctx, user.ID); err != nil {
+				app.logger.Errorw("error deleting user", "error", err)
+			}
+			return
 		}
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	}()
 
 	if err := app.writeJSON(w, http.StatusCreated, nil, nil); err != nil {
 		app.serverErrorResponse(w, r, err)
