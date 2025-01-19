@@ -28,8 +28,13 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 		w.Header()[key] = value
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	if status != http.StatusNoContent {
+		w.Header().Set("Content-Type", "application/json")
+	}
 	w.WriteHeader(status)
+	if status == http.StatusNoContent {
+		return nil
+	}
 
 	_, err = buf.WriteTo(w)
 	if err != nil {

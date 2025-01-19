@@ -6,6 +6,7 @@ import (
 
 	"github.com/devphaseX/mingle.git/internal/db"
 	"github.com/devphaseX/mingle.git/internal/env"
+	"github.com/devphaseX/mingle.git/internal/mailer"
 	"github.com/devphaseX/mingle.git/internal/store"
 	"go.uber.org/zap"
 
@@ -35,9 +36,10 @@ var version = "0.0.2"
 // @description				Bearer token authentication
 func main() {
 	cfg := config{
-		apiURL: env.GetString("EXTERNAL_LINKS", "localhost:8080"),
-		addr:   env.GetString("ADDR", ":8080"),
-		env:    env.GetString("ENV", "development"),
+		apiURL:      env.GetString("EXTERNAL_LINKS", "localhost:8080"),
+		addr:        env.GetString("ADDR", ":8080"),
+		env:         env.GetString("ENV", "development"),
+		frontendURL: env.GetString("FRONTEND_URL", "http://localhost:4000"),
 		db: dbConfig{
 			dsn:          env.GetString("DB_ADDR", "postgres://mingle:adminpassword@localhost/mingle?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
@@ -46,6 +48,15 @@ func main() {
 		},
 		mail: mailConfig{
 			exp: time.Hour * 24 * 3, //3 days
+			mailTrap: mailTrapConfig{
+				fromEmail:       env.GetString("MAIL_TRAP_FROM_EMAIL", ""),
+				apiKey:          env.GetString("MAIL_TRAP_API_KEY", ""),
+				smtpAddr:        env.GetString("MAIL_TRAP_SMTP_ADDR", ""),
+				smtpSandboxAddr: env.GetString("MAIL_TRAP_SANDBOX_ADDR", "sandbox.smtp.mailtrap.io"),
+				smtpPort:        env.GetInt("MAIL_TRAP_SMTP_PORT", 0),
+				username:        env.GetString("MAIL_TRAP_USERNAME", ""),
+				password:        env.GetString("MAIL_TRAP_PASSWORD", ""),
+			},
 		},
 	}
 
@@ -65,10 +76,20 @@ func main() {
 	}
 
 	store := store.NewPostgressStorage(db)
+	mailer := mailer.NewMailTrapClient(
+		cfg.mail.mailTrap.fromEmail,
+		cfg.mail.mailTrap.smtpAddr,
+		cfg.mail.mailTrap.smtpSandboxAddr,
+		cfg.mail.mailTrap.username,
+		cfg.mail.mailTrap.password,
+		cfg.mail.mailTrap.smtpPort,
+	)
+
 	app := &application{
 		config: cfg,
 		store:  store,
 		logger: logger,
+		mailer: mailer,
 	}
 
 	mux := app.mount()

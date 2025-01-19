@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/devphaseX/mingle.git/internal/mailer"
 	"github.com/devphaseX/mingle.git/internal/store"
 	"github.com/google/uuid"
 )
@@ -42,8 +43,6 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	user.Password.Set(form.Password)
 
 	plainToken := uuid.New().String()
-
-	fmt.Println("token", plainToken)
 	//store
 	hash := sha256.Sum256([]byte(plainToken))
 	hashToken := hex.EncodeToString(hash[:])
@@ -60,6 +59,38 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 				app.serverErrorResponse(w, r, err)
 			}
 			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	activationURL := fmt.Sprintf("%s/confirm/%s", app.config.frontendURL, plainToken)
+
+	vars := struct {
+		Email         string
+		Username      string
+		ActivationURL string
+	}{
+		Email:         user.Email,
+		Username:      fmt.Sprintf("%s %s", user.FirstName, user.LastName),
+		ActivationURL: activationURL,
+	}
+
+	//send mail
+	err = app.mailer.Send(
+		mailer.UserWelcomeTemplate,
+		vars.Username,
+		vars.Email,
+		vars,
+		app.config.env == "development",
+	)
+
+	if err != nil {
+		app.logger.Errorw("error sending welcome email", "error", err)
+
+		//rollback user creation if email fails (SAGA pattern)
+		if err := app.store.Users.Delete(r.Context(), user.ID); err != nil {
+			app.logger.Errorw("error deleting user", "error", err)
 		}
 		app.serverErrorResponse(w, r, err)
 		return
