@@ -191,7 +191,7 @@ func (s *UserStore) getUserFromInvitation(ctx context.Context, tx *sql.Tx, token
 	)
 	hash := sha256.Sum256([]byte(token))
 	hashToken := hex.EncodeToString(hash[:])
-	err := tx.QueryRowContext(ctx, query, hashToken, time.Now()).Scan(
+	err := tx.QueryRowContext(ctx, query, pq.Array([]byte(hashToken)), time.Now()).Scan(
 		&user.ID,
 		&user.FirstName,
 		&user.LastName,
@@ -221,7 +221,7 @@ func (app *UserStore) update(ctx context.Context, user *User, tx *sql.Tx) error 
 
 	defer cancel()
 
-	args := []any{user.FirstName, user.LastName, user.Email, user.IsActive, user.EmailVerifiedAt}
+	args := []any{user.FirstName, user.LastName, user.Email, user.IsActive, user.EmailVerifiedAt, user.ID}
 
 	res, err := tx.ExecContext(ctx, query, args...)
 
@@ -251,7 +251,7 @@ func (s *UserStore) deleteUserInvitation(ctx context.Context, tx *sql.Tx, token 
 
 	defer cancel()
 
-	_, err := tx.ExecContext(ctx, query, hashToken)
+	_, err := tx.ExecContext(ctx, query, pq.Array([]byte(hashToken)))
 
 	return err
 }

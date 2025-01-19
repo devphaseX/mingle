@@ -89,8 +89,8 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 //	@Produce		json
 //	@Param			id	path	int	true	"User ID of the user to unfollow"
 //	@Success		204	"Successfully unfollowed the user"
-//	@Failure		404	{object}	object{error=object{message=string}}	"Not Found - No follow relationship found"
-//	@Failure		500	{object}	object{error=object{message=string}}	"Internal server error"
+//	@Failure		404	{object}	object{error=string}	"Not Found - No follow relationship found"
+//	@Failure		500	{object}	object{error=string}	"Internal server error"
 //	@Security		ApiKeyAuth
 //	@Router			/users/{id}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +154,18 @@ func getUserFromCtx(r *http.Request) *store.User {
 	return user
 }
 
+// ActivateUser godoc
+//
+//	@Summary		Activate a user account
+//	@Description	Activates a user account using a token provided in the URL.
+//	@Tags			users
+//	@Accept			json
+//	@Produce		json
+//	@Param			token	path		string					true	"Activation token"
+//	@Success		204		{object}	nil						"User account activated successfully"
+//	@Failure		403		{object}	object{error=string}	"Invalid or expired token"
+//	@Failure		500		{object}	object{error=string}	"Internal server error"
+//	@Router			/users/activate/{token} [post]
 func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 
@@ -163,9 +175,13 @@ func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Reque
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 			app.errorResponse(w, r, http.StatusForbidden, "invalid or expired  token")
+		case errors.Is(err, store.ErrUserAlreadyActivated):
+			app.errorResponse(w, r, http.StatusForbidden, err)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
+
+		return
 	}
 
 	if err := app.writeJSON(w, http.StatusNoContent, nil, nil); err != nil {

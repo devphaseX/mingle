@@ -252,6 +252,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/activate/{token}": {
+            "post": {
+                "description": "Activates a user account using a token provided in the URL.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Activate a user account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Activation token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "User account activated successfully"
+                    },
+                    "403": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/feed": {
             "get": {
                 "security": [
@@ -529,12 +580,7 @@ const docTemplate = `{
                             "type": "object",
                             "properties": {
                                 "error": {
-                                    "type": "object",
-                                    "properties": {
-                                        "message": {
-                                            "type": "string"
-                                        }
-                                    }
+                                    "type": "string"
                                 }
                             }
                         }
@@ -545,12 +591,7 @@ const docTemplate = `{
                             "type": "object",
                             "properties": {
                                 "error": {
-                                    "type": "object",
-                                    "properties": {
-                                        "message": {
-                                            "type": "string"
-                                        }
-                                    }
+                                    "type": "string"
                                 }
                             }
                         }

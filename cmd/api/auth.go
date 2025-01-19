@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/devphaseX/mingle.git/internal/store"
@@ -42,6 +43,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 	plainToken := uuid.New().String()
 
+	fmt.Println("token", plainToken)
 	//store
 	hash := sha256.Sum256([]byte(plainToken))
 	hashToken := hex.EncodeToString(hash[:])

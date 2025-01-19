@@ -421,24 +421,51 @@ paths:
           schema:
             properties:
               error:
-                properties:
-                  message:
-                    type: string
-                type: object
+                type: string
             type: object
         "500":
           description: Internal server error
           schema:
             properties:
               error:
-                properties:
-                  message:
-                    type: string
-                type: object
+                type: string
             type: object
       security:
       - ApiKeyAuth: []
       summary: Unfollow a user
+      tags:
+      - users
+  /users/activate/{token}:
+    post:
+      consumes:
+      - application/json
+      description: Activates a user account using a token provided in the URL.
+      parameters:
+      - description: Activation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: User account activated successfully
+        "403":
+          description: Invalid or expired token
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Activate a user account
       tags:
       - users
   /users/feed:
