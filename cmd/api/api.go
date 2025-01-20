@@ -61,6 +61,12 @@ type AuthConfig struct {
 	AccessTokenTTL   time.Duration
 	RefreshTokenTTL  time.Duration
 	RememberMeTTL    time.Duration
+	basic            basicAuth
+}
+
+type basicAuth struct {
+	username string
+	password string
 }
 
 func (app *application) mount() *chi.Mux {
@@ -82,7 +88,7 @@ func (app *application) mount() *chi.Mux {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Route("/v1", func(r chi.Router) {
-		r.Get("/health", app.healthCheckHandler)
+		r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)
 
 		docsURL := fmt.Sprintf("%s/swagger/doc.json", app.config.addr)
 		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL(docsURL)))

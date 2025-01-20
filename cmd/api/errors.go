@@ -83,8 +83,14 @@ func (app *application) invalidAuthenticationTokenResponse(w http.ResponseWriter
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
 
-func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
-	message := "you must be authenticated to access this resource"
+func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request, message string) {
+	app.logger.Errorf("unauthorized response", "method", r.Method, "path", r.URL.Path)
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+
+func (app *application) authenticationBasicRequiredResponse(w http.ResponseWriter, r *http.Request, message string) {
+	app.logger.Errorf("unauthorized response", "method", r.Method, "path", r.URL.Path)
+	w.Header().Set("WWW-Authenticate", `Basic realm="restricted",charset="UTF-8"`)
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
 

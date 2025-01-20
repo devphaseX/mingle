@@ -11,7 +11,7 @@ import (
 )
 
 type TokenMaker interface {
-	GenerateAccessToken(userID, sessionID string) (string, error)
+	GenerateAccessToken(userID int64, sessionID string) (string, error)
 	GenerateRefreshToken(sessionID string) (string, error)
 	ValidateAccessToken(tokenString string) (*AccessPayload, error)
 	ValidateRefreshToken(tokenString string) (*RefreshPayload, error)
@@ -62,7 +62,7 @@ func NewTokenStore(accessSecret, refreshSecret string, accessExpiry, refreshExpi
 
 // Payload for access tokens
 type AccessPayload struct {
-	UserID    string `json:"user_id"`
+	UserID    int64  `json:"user_id"`
 	SessionID string `json:"session_id"`
 }
 
@@ -72,7 +72,7 @@ type RefreshPayload struct {
 }
 
 // GenerateAccessToken creates a PASETO token for access
-func (t *TokenStore) GenerateAccessToken(userID, sessionID string) (string, error) {
+func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string) (string, error) {
 	payload := AccessPayload{
 		UserID:    userID,
 		SessionID: sessionID,

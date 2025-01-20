@@ -35,11 +35,12 @@ type Storage struct {
 
 	Sessions interface {
 		CreateSession(ctx context.Context, userID, userAgent, ip string) (*Session, error)
-		ValidateSession(ctx context.Context, sessionID string) (*Session, *User, error)
+		ValidateSession(ctx context.Context, sessionID string) (*Session, *User, bool, error)
 		InvalidateSession(ctx context.Context, sessionID string) error
 		UpdateLastUsed(ctx context.Context, sessionID string) error
 		GetSessionsByUserID(ctx context.Context, userID string, isAdmin bool, paginateQuery PaginateQueryFilter) ([]Session, Metadata, error)
 		GetSessionByID(ctx context.Context, sessionID string) (*Session, *User, error)
+		ExtendSessionAndGenerateRefreshToken(ctx context.Context, session *Session, tokenMaker TokenMaker, rememberPeriod time.Duration) (string, error)
 	}
 
 	Comments interface {

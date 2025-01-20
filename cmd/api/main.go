@@ -65,6 +65,10 @@ func main() {
 			AccessTokenTTL:   env.GetDuration("ACCESS_TOKEN_TTL", time.Minute*5),
 			RefreshTokenTTL:  env.GetDuration("REFRESH_TOKEN_TLL", time.Hour*1),
 			RememberMeTTL:    env.GetDuration("REMEMBER_ME_TTL", time.Hour*24*30),
+			basic: basicAuth{
+				username: env.GetString("AUTH_BASIC_USERNAME", ""),
+				password: env.GetString("AUTH_BASIC_PASSWORD", ""),
+			},
 		},
 	}
 

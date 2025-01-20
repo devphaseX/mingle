@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -11,13 +13,16 @@ import (
 )
 
 type Session struct {
-	ID        string     `db:"id"`
-	UserID    string     `db:"user_id"`
-	UserAgent string     `db:"user_agent"`
-	IP        string     `db:"ip"`
-	ExpiresAt time.Time  `db:"expires_at"`
-	LastUsed  *time.Time `db:"last_used"`
-	CreatedAt time.Time  `db:"created_at"`
+	ID                 string     `json:"id"`
+	UserID             string     `json:"user_id"`
+	UserAgent          string     `json:"user_agent"`
+	IP                 string     `json:"ip"`
+	RefreshToken       string     `json:"-"`
+	ExpiresAt          time.Time  `json:"expires_at"`
+	LastUsed           *time.Time `json:"last_used"`
+	CreatedAt          time.Time  `json:"created_at"`
+	RememberMe         bool       `json:"remember_me"`          // Whether the session should be extended
+	MaxRenewalDuration int64      `json:"max_renewal_duration"` // Maximum duration for session renewal (in seconds)
 }
 
 type SessionStore struct {
@@ -46,14 +51,14 @@ func (s *SessionStore) CreateSession(ctx context.Context, userID, userAgent, ip 
 	return session, nil
 }
 
-func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*Session, *User, error) {
+func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*Session, *User, bool, error) {
 	var session Session
 	var user User
-	var emailVerifiedAt sql.NullTime // Use sql.NullTime for nullable fields
+	var emailVerifiedAt sql.NullTime
 
 	query := `
 		SELECT
-			s.id, s.user_id, s.user_agent, s.ip, s.expires_at, s.last_used, s.created_at,
+			s.id, s.user_id, s.user_agent, s.ip, s.expires_at, s.last_used, s.created_at, s.remember_me, s.max_renewal_duration,
 			u.id, u.first_name, u.last_name, u.username, u.email, u.is_active, u.email_verified_at, u.created_at
 		FROM sessions s
 		INNER JOIN users u ON s.user_id = u.id
@@ -66,15 +71,15 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*
 	row := s.db.QueryRowContext(ctx, query, sessionID)
 
 	err := row.Scan(
-		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt,
+		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt, &session.RememberMe, &session.MaxRenewalDuration,
 		&user.ID, &user.FirstName, &user.LastName, &user.Username, &user.Email, &user.IsActive, &emailVerifiedAt, &user.CreatedAt,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil, nil
+			return nil, nil, false, nil
 		}
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
 	// Handle nullable fields
@@ -85,12 +90,29 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*
 	}
 
 	// Check if the session is expired
-	if time.Now().After(session.ExpiresAt) {
+	now := time.Now()
+	if now.After(session.ExpiresAt) {
 		_ = s.InvalidateSession(ctx, sessionID)
-		return nil, nil, nil
+		return nil, nil, false, nil
 	}
 
-	return &session, &user, nil
+	// Check if the session can be extended (Remember Me is enabled)
+	canExtend := false
+	if session.RememberMe {
+		// Calculate the maximum allowed expiration time
+		maxRenewalTime := session.CreatedAt.Add(time.Duration(session.MaxRenewalDuration) * time.Second)
+
+		// If the current expiration time is before the maximum allowed, the session can be extended
+		if session.ExpiresAt.Before(maxRenewalTime) {
+			canExtend = true
+		} else {
+			// The session has exceeded the maximum renewal duration; force the user to log in again
+			_ = s.InvalidateSession(ctx, sessionID)
+			return nil, nil, false, nil
+		}
+	}
+
+	return &session, &user, canExtend, nil
 }
 
 func (s *SessionStore) InvalidateSession(ctx context.Context, sessionID string) error {
@@ -199,4 +221,45 @@ func (s *SessionStore) GetSessionsByUserID(ctx context.Context, userID string, i
 	metadata := calculateMetadata(totalRecords, paginateQuery.Page, paginateQuery.PageSize)
 
 	return sessions, metadata, nil
+}
+
+func (s *SessionStore) ExtendSessionAndGenerateRefreshToken(ctx context.Context, session *Session, tokenMaker TokenMaker, rememberPeriod time.Duration) (string, error) {
+	// Check if RememberMe is enabled
+	if !session.RememberMe {
+		return "", fmt.Errorf("session cannot be extended: RememberMe is not enabled")
+	}
+
+	// Calculate the maximum allowed expiration time
+	maxRenewalTime := session.CreatedAt.Add(time.Duration(session.MaxRenewalDuration) * time.Second)
+
+	// Calculate the new expiration time (current time + remember period)
+	newExpiresAt := time.Now().Add(rememberPeriod)
+
+	// Ensure the new expiration time does not exceed the maximum renewal duration
+	if newExpiresAt.After(maxRenewalTime) {
+		newExpiresAt = maxRenewalTime
+	}
+
+	// Generate a new refresh token
+	newRefreshToken, err := tokenMaker.GenerateRefreshToken(session.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Hash the refresh token before storing it in the database
+	hashByte := sha256.Sum256([]byte(newRefreshToken))
+	refreshTokenHash := hex.EncodeToString(hashByte[:])
+
+	// Update the session expiration time and refresh token hash in the database
+	updateQuery := `UPDATE sessions SET expires_at = $1, refresh_token_hash = $2 WHERE id = $3`
+	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, refreshTokenHash, session.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to extend session: %w", err)
+	}
+
+	// Update the session's ExpiresAt field in memory
+	session.ExpiresAt = newExpiresAt
+
+	// Return the new refresh token (unhashed) to the client
+	return newRefreshToken, nil
 }

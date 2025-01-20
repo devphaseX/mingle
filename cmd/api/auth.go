@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/devphaseX/mingle.git/internal/mailer"
 	"github.com/devphaseX/mingle.git/internal/store"
@@ -104,4 +106,67 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		app.serverErrorResponse(w, r, err)
 	}
 
+}
+
+func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var refreshRequest struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	// Try to get the refresh token from the cookie
+	refreshTokenCookie, err := r.Cookie("sid")
+	if err == nil && refreshTokenCookie != nil && strings.TrimSpace(refreshTokenCookie.Value) != "" {
+		refreshRequest.RefreshToken = refreshTokenCookie.Value
+	} else {
+		// If the cookie is not available, try to get the refresh token from the JSON body
+		if err := app.readJSON(w, r, &refreshRequest); err != nil {
+			app.errorResponse(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	// Validate the refresh token
+	claims, err := app.tokenMaker.ValidateRefreshToken(refreshRequest.RefreshToken)
+	if err != nil {
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+
+	// Validate the session
+	session, user, canExtend, err := app.store.Sessions.ValidateSession(r.Context(), claims.SessionID)
+	if err != nil || session == nil {
+		app.errorResponse(w, r, http.StatusUnauthorized, "invalid session")
+		return
+	}
+
+	// Generate a new access token
+	accessToken, err := app.tokenMaker.GenerateAccessToken(user.ID, session.ID)
+	if err != nil {
+		app.errorResponse(w, r, http.StatusInternalServerError, "failed to generate access token")
+		return
+	}
+
+	var (
+		newRefreshToken string
+		rememberPeriod  = app.config.auth.RefreshTokenTTL
+	)
+
+	if canExtend {
+		newRefreshToken, err = app.store.Sessions.ExtendSessionAndGenerateRefreshToken(r.Context(), session, app.tokenMaker, rememberPeriod)
+		if err != nil {
+			app.errorResponse(w, r, http.StatusInternalServerError, fmt.Sprintf("failed to extend session: %v", err))
+			return
+		}
+	}
+
+	// Return the new access token
+	response := envelope{
+		"access_token":  accessToken,
+		"refresh_token": newRefreshToken,
+		"expires_in":    time.Now().Add(rememberPeriod).Unix(),
+	}
+
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
+		app.errorResponse(w, r, http.StatusInternalServerError, "failed to write response")
+	}
 }
