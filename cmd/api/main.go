@@ -98,7 +98,7 @@ func main() {
 		logger,
 	)
 
-	tokenMaker, err := store.NewTokenStore(cfg.auth.AccessSecretKey, cfg.auth.RefreshSecretKey, cfg.auth.AccessTokenTTL, cfg.auth.RefreshTokenTTL, cfg.auth.RememberMeTTL)
+	tokenMaker, err := store.NewTokenStore(cfg.auth.AccessSecretKey, cfg.auth.RefreshSecretKey)
 
 	if err != nil {
 		logger.Panicf("setting up token maker error:  %w", err)

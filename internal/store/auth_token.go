@@ -11,21 +11,20 @@ import (
 )
 
 type TokenMaker interface {
-	GenerateAccessToken(userID int64, sessionID string) (string, error)
-	GenerateRefreshToken(sessionID string) (string, error)
+	GenerateAccessToken(userID int64, sessionID string, expiry time.Duration) (string, error)
+	GenerateRefreshToken(sessionID string, expiry time.Duration) (string, error)
 	ValidateAccessToken(tokenString string) (*AccessPayload, error)
 	ValidateRefreshToken(tokenString string) (*RefreshPayload, error)
 }
 
 type TokenStore struct {
-	paseto        *paseto.V2
-	accessKey     []byte // Symmetric key for access tokens
-	refreshKey    []byte // Symmetric key for refresh tokens
-	accessExpiry  time.Duration
-	refreshExpiry time.Duration
+	paseto     *paseto.V2
+	accessKey  []byte // Symmetric key for access tokens
+	refreshKey []byte // Symmetric key for refresh tokens
+
 }
 
-func NewTokenStore(accessSecret, refreshSecret string, accessExpiry, refreshExpiry, rememberMeExpiry time.Duration) (*TokenStore, error) {
+func NewTokenStore(accessSecret, refreshSecret string) (*TokenStore, error) {
 
 	// Decode the base64-encoded key
 	accessSecretByte, err := base64.StdEncoding.DecodeString(accessSecret)
@@ -52,11 +51,9 @@ func NewTokenStore(accessSecret, refreshSecret string, accessExpiry, refreshExpi
 	}
 
 	return &TokenStore{
-		paseto:        paseto.NewV2(),
-		accessKey:     accessSecretByte,
-		refreshKey:    refreshSecretByte,
-		accessExpiry:  accessExpiry,
-		refreshExpiry: refreshExpiry,
+		paseto:     paseto.NewV2(),
+		accessKey:  accessSecretByte,
+		refreshKey: refreshSecretByte,
 	}, nil
 }
 
@@ -69,17 +66,18 @@ type AccessPayload struct {
 // Payload for refresh tokens
 type RefreshPayload struct {
 	SessionID string `json:"session_id"`
+	Version   int    `json:"version"`
 }
 
 // GenerateAccessToken creates a PASETO token for access
-func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string) (string, error) {
+func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string, accessExpiry time.Duration) (string, error) {
 	payload := AccessPayload{
 		UserID:    userID,
 		SessionID: sessionID,
 	}
 
 	// Set token expiration
-	expiration := time.Now().Add(t.accessExpiry)
+	expiration := time.Now().Add(accessExpiry)
 
 	// Create the token
 	token, err := t.paseto.Encrypt(t.accessKey, payload, expiration)
@@ -91,13 +89,13 @@ func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string) (string
 }
 
 // GenerateRefreshToken creates a PASETO token for refresh
-func (t *TokenStore) GenerateRefreshToken(sessionID string) (string, error) {
+func (t *TokenStore) GenerateRefreshToken(sessionID string, refreshExpiry time.Duration) (string, error) {
 	payload := RefreshPayload{
 		SessionID: sessionID,
 	}
 
 	// Set token expiration
-	expiration := time.Now().Add(t.refreshExpiry)
+	expiration := time.Now().Add(refreshExpiry)
 
 	// Create the token
 	token, err := t.paseto.Encrypt(t.refreshKey, payload, expiration)

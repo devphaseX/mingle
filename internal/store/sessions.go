@@ -2,9 +2,7 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -14,10 +12,10 @@ import (
 
 type Session struct {
 	ID                 string     `json:"id"`
-	UserID             string     `json:"user_id"`
+	UserID             int64      `json:"user_id"`
 	UserAgent          string     `json:"user_agent"`
 	IP                 string     `json:"ip"`
-	RefreshToken       string     `json:"-"`
+	Version            int        `json:"version"`
 	ExpiresAt          time.Time  `json:"expires_at"`
 	LastUsed           *time.Time `json:"last_used"`
 	CreatedAt          time.Time  `json:"created_at"`
@@ -29,21 +27,31 @@ type SessionStore struct {
 	db *sql.DB
 }
 
-func (s *SessionStore) CreateSession(ctx context.Context, userID, userAgent, ip string) (*Session, error) {
+func (s *SessionStore) CreateSession(ctx context.Context, userID int64, userAgent, ip string, expiry time.Duration, rememberMe bool) (*Session, error) {
 	session := &Session{
-		ID:        uuid.New().String(),
-		UserID:    userID,
-		UserAgent: userAgent,
-		IP:        ip,
-		ExpiresAt: time.Now().Add(time.Hour * 24 * 7), // 1 week
+		ID:         uuid.New().String(),
+		UserID:     userID,
+		UserAgent:  userAgent,
+		IP:         ip,
+		Version:    1,
+		RememberMe: rememberMe,
+		ExpiresAt:  time.Now().Add(expiry), // 1 week
 	}
 
-	query := `INSERT INTO sessions (id, user_id, user_agent, ip, expires_at)
+	query := `INSERT INTO sessions (id, user_id, user_agent, ip,version, expires_at)
 	          VALUES ($1, $2, $3 , $4, $5)`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx, query, session.ID, session.UserID, session.UserAgent, session.IP, session.ExpiresAt)
+	_, err := s.db.ExecContext(ctx,
+		query,
+		session.ID,
+		session.UserID,
+		session.UserAgent,
+		session.IP,
+		session.Version,
+		session.ExpiresAt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +59,7 @@ func (s *SessionStore) CreateSession(ctx context.Context, userID, userAgent, ip 
 	return session, nil
 }
 
-func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*Session, *User, bool, error) {
+func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string, version int) (*Session, *User, bool, error) {
 	var session Session
 	var user User
 	var emailVerifiedAt sql.NullTime
@@ -62,13 +70,13 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string) (*
 			u.id, u.first_name, u.last_name, u.username, u.email, u.is_active, u.email_verified_at, u.created_at
 		FROM sessions s
 		INNER JOIN users u ON s.user_id = u.id
-		WHERE s.id = $1
+		WHERE s.id = $1 and s.version = $2
 	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
 
-	row := s.db.QueryRowContext(ctx, query, sessionID)
+	row := s.db.QueryRowContext(ctx, query, sessionID, version)
 
 	err := row.Scan(
 		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt, &session.RememberMe, &session.MaxRenewalDuration,
@@ -152,8 +160,21 @@ func (s *SessionStore) GetSessionByID(ctx context.Context, sessionID string) (*S
 	row := s.db.QueryRowContext(ctx, query, sessionID)
 
 	err := row.Scan(
-		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt,
-		&user.ID, &user.FirstName, &user.LastName, &user.Username, &user.Email, &user.IsActive, &emailVerifiedAt, &user.CreatedAt,
+		&session.ID,
+		&session.UserID,
+		&session.UserAgent,
+		&session.IP,
+		&session.ExpiresAt,
+		&session.LastUsed,
+		&session.CreatedAt,
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Username,
+		&user.Email,
+		&user.IsActive,
+		&emailVerifiedAt,
+		&user.CreatedAt,
 	)
 
 	if err != nil {
@@ -241,18 +262,14 @@ func (s *SessionStore) ExtendSessionAndGenerateRefreshToken(ctx context.Context,
 	}
 
 	// Generate a new refresh token
-	newRefreshToken, err := tokenMaker.GenerateRefreshToken(session.ID)
+	newRefreshToken, err := tokenMaker.GenerateRefreshToken(session.ID, rememberPeriod)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	// Hash the refresh token before storing it in the database
-	hashByte := sha256.Sum256([]byte(newRefreshToken))
-	refreshTokenHash := hex.EncodeToString(hashByte[:])
-
 	// Update the session expiration time and refresh token hash in the database
-	updateQuery := `UPDATE sessions SET expires_at = $1, refresh_token_hash = $2 WHERE id = $3`
-	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, refreshTokenHash, session.ID)
+	updateQuery := `UPDATE sessions SET expires_at = $1 WHERE id = $3`
+	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, session.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to extend session: %w", err)
 	}

@@ -133,14 +133,14 @@ func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate the session
-	session, user, canExtend, err := app.store.Sessions.ValidateSession(r.Context(), claims.SessionID)
+	session, user, canExtend, err := app.store.Sessions.ValidateSession(r.Context(), claims.SessionID, claims.Version)
 	if err != nil || session == nil {
 		app.errorResponse(w, r, http.StatusUnauthorized, "invalid session")
 		return
 	}
 
 	// Generate a new access token
-	accessToken, err := app.tokenMaker.GenerateAccessToken(user.ID, session.ID)
+	accessToken, err := app.tokenMaker.GenerateAccessToken(user.ID, session.ID, app.config.auth.AccessTokenTTL)
 	if err != nil {
 		app.errorResponse(w, r, http.StatusInternalServerError, "failed to generate access token")
 		return
@@ -169,4 +169,74 @@ func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.errorResponse(w, r, http.StatusInternalServerError, "failed to write response")
 	}
+}
+
+type signInForm struct {
+	Email      string `json:"email" validate:"required,email,max=255"`
+	Password   string `json:"password" validate:"required,min=1,max=255"`
+	RememberMe bool   `json:"remember_me"`
+}
+
+func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
+	var form signInForm
+	if err := app.readJSON(w, r, &form); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	user, err := app.store.Users.GetByEmail(r.Context(), form.Email)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			app.errorResponse(w, r, http.StatusNotFound, "invalid credential email or password")
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	match, err := user.Password.Matches(form.Password)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	if !match {
+		app.errorResponse(w, r, http.StatusNotFound, "invalid credential email or password")
+		return
+	}
+
+	sessionExpiry := app.config.auth.RefreshTokenTTL
+	if form.RememberMe {
+		sessionExpiry = app.config.auth.RememberMeTTL
+	}
+
+	session, err := app.store.Sessions.CreateSession(r.Context(), user.ID, "", "", sessionExpiry, form.RememberMe)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	accessToken, err := app.tokenMaker.GenerateAccessToken(user.ID, session.ID, app.config.auth.AccessTokenTTL)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	refreshToken, err := app.tokenMaker.GenerateRefreshToken(session.ID, sessionExpiry)
+
+	response := envelope{
+		"access_token":  accessToken,
+		"expires_in":    time.Now().Add(time.Hour * 1).Unix(),
+		"refresh_token": refreshToken, // Include the new refresh token (if generated)
+	}
+
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
 }

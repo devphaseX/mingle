@@ -27,6 +27,7 @@ type Storage struct {
 	Users interface {
 		Create(context.Context, *User, *sql.Tx) error
 		GetById(context.Context, int64) (*User, error)
+		GetByEmail(context.Context, string) (*User, error)
 		Delete(context.Context, int64) error
 		Activate(context.Context, string) error
 		CreateAndInvite(ctx context.Context, user *User, invitationExp time.Duration, token string) error
@@ -34,8 +35,8 @@ type Storage struct {
 	}
 
 	Sessions interface {
-		CreateSession(ctx context.Context, userID, userAgent, ip string) (*Session, error)
-		ValidateSession(ctx context.Context, sessionID string) (*Session, *User, bool, error)
+		CreateSession(ctx context.Context, userID int64, userAgent, ip string, expiry time.Duration, rememberMe bool) (*Session, error)
+		ValidateSession(ctx context.Context, sessionID string, version int) (*Session, *User, bool, error)
 		InvalidateSession(ctx context.Context, sessionID string) error
 		UpdateLastUsed(ctx context.Context, sessionID string) error
 		GetSessionsByUserID(ctx context.Context, userID string, isAdmin bool, paginateQuery PaginateQueryFilter) ([]Session, Metadata, error)
