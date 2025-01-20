@@ -33,6 +33,15 @@ type Storage struct {
 		createUserInvitation(ctx context.Context, tx *sql.Tx, token string, exp time.Time, userId int64) error
 	}
 
+	Sessions interface {
+		CreateSession(ctx context.Context, userID, userAgent, ip string) (*Session, error)
+		ValidateSession(ctx context.Context, sessionID string) (*Session, *User, error)
+		InvalidateSession(ctx context.Context, sessionID string) error
+		UpdateLastUsed(ctx context.Context, sessionID string) error
+		GetSessionsByUserID(ctx context.Context, userID string, isAdmin bool, paginateQuery PaginateQueryFilter) ([]Session, Metadata, error)
+		GetSessionByID(ctx context.Context, sessionID string) (*Session, *User, error)
+	}
+
 	Comments interface {
 		GetByPostID(context.Context, int64) ([]*Comment, error)
 	}
@@ -49,6 +58,7 @@ func NewPostgressStorage(db *sql.DB) Storage {
 		Posts:     &PostStore{db},
 		Comments:  &CommentStore{db},
 		Followers: &FollowerStore{db},
+		Sessions:  &SessionStore{db},
 	}
 }
 

@@ -58,6 +58,14 @@ func main() {
 				password:        env.GetString("MAIL_TRAP_PASSWORD", ""),
 			},
 		},
+
+		auth: AuthConfig{
+			AccessSecretKey:  env.GetString("ACCESS_SECRET_KEY", ""),
+			RefreshSecretKey: env.GetString("REFRESH_SECRET_KEY", ""),
+			AccessTokenTTL:   env.GetDuration("ACCESS_TOKEN_TTL", time.Minute*5),
+			RefreshTokenTTL:  env.GetDuration("REFRESH_TOKEN_TLL", time.Hour*1),
+			RememberMeTTL:    env.GetDuration("REMEMBER_ME_TTL", time.Hour*24*30),
+		},
 	}
 
 	//Logger
@@ -75,7 +83,7 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	store := store.NewPostgressStorage(db)
+	dbStore := store.NewPostgressStorage(db)
 	mailer := mailer.NewMailTrapClient(
 		cfg.mail.mailTrap.fromEmail,
 		cfg.mail.mailTrap.smtpAddr,
@@ -86,11 +94,18 @@ func main() {
 		logger,
 	)
 
+	tokenMaker, err := store.NewTokenStore(cfg.auth.AccessSecretKey, cfg.auth.RefreshSecretKey, cfg.auth.AccessTokenTTL, cfg.auth.RefreshTokenTTL, cfg.auth.RememberMeTTL)
+
+	if err != nil {
+		logger.Panicf("setting up token maker error:  %w", err)
+	}
+
 	app := &application{
-		config: cfg,
-		store:  store,
-		logger: logger,
-		mailer: mailer,
+		config:     cfg,
+		store:      dbStore,
+		logger:     logger,
+		mailer:     mailer,
+		tokenMaker: tokenMaker,
 	}
 
 	mux := app.mount()

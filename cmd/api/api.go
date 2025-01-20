@@ -16,10 +16,11 @@ import (
 )
 
 type application struct {
-	config config
-	store  store.Storage
-	logger *zap.SugaredLogger
-	mailer mailer.Client
+	config     config
+	store      store.Storage
+	logger     *zap.SugaredLogger
+	mailer     mailer.Client
+	tokenMaker store.TokenMaker
 }
 
 type config struct {
@@ -29,6 +30,7 @@ type config struct {
 	apiURL      string
 	frontendURL string
 	mail        mailConfig
+	auth        AuthConfig
 }
 
 type mailConfig struct {
@@ -51,6 +53,14 @@ type dbConfig struct {
 	maxOpenConns int
 	maxIdleConns int
 	maxIdleTime  string
+}
+
+type AuthConfig struct {
+	AccessSecretKey  string
+	RefreshSecretKey string
+	AccessTokenTTL   time.Duration
+	RefreshTokenTTL  time.Duration
+	RememberMeTTL    time.Duration
 }
 
 func (app *application) mount() *chi.Mux {
