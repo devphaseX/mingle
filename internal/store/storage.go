@@ -8,12 +8,13 @@ import (
 )
 
 var (
-	ErrNotFound             = errors.New("resource not found")
-	ErrConflict             = errors.New("resource already exist")
-	ErrUserAlreadyActivated = errors.New("user already activated")
-	ErrDuplicateEmail       = UserFriendlyError{UserMessage: "email already taken", InternalErr: ErrConflict}
-	ErrDuplicateUsername    = UserFriendlyError{UserMessage: "username already taken", InternalErr: ErrConflict}
-	QueryTimeoutDuration    = time.Second * 5
+	ErrNotFound               = errors.New("resource not found")
+	ErrConflict               = errors.New("resource already exist")
+	ErrUserAlreadyActivated   = errors.New("user already activated")
+	ErrSessionCannotBeExtends = errors.New("session cannot be extended: RememberMe is not enabled")
+	ErrDuplicateEmail         = UserFriendlyError{UserMessage: "email already taken", InternalErr: ErrConflict}
+	ErrDuplicateUsername      = UserFriendlyError{UserMessage: "username already taken", InternalErr: ErrConflict}
+	QueryTimeoutDuration      = time.Second * 5
 )
 
 type Storage struct {

@@ -247,7 +247,7 @@ func (s *SessionStore) GetSessionsByUserID(ctx context.Context, userID string, i
 func (s *SessionStore) ExtendSessionAndGenerateRefreshToken(ctx context.Context, session *Session, tokenMaker TokenMaker, rememberPeriod time.Duration) (string, error) {
 	// Check if RememberMe is enabled
 	if !session.RememberMe {
-		return "", fmt.Errorf("session cannot be extended: RememberMe is not enabled")
+		return "", ErrSessionCannotBeExtends
 	}
 
 	// Calculate the maximum allowed expiration time
@@ -268,8 +268,8 @@ func (s *SessionStore) ExtendSessionAndGenerateRefreshToken(ctx context.Context,
 	}
 
 	// Update the session expiration time and refresh token hash in the database
-	updateQuery := `UPDATE sessions SET expires_at = $1 WHERE id = $3`
-	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, session.ID)
+	updateQuery := `UPDATE sessions SET expires_at = $1, version = version + 1 WHERE id = $2 AND version = $3`
+	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, session.ID, session.Version)
 	if err != nil {
 		return "", fmt.Errorf("failed to extend session: %w", err)
 	}

@@ -154,16 +154,19 @@ func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if canExtend {
 		newRefreshToken, err = app.store.Sessions.ExtendSessionAndGenerateRefreshToken(r.Context(), session, app.tokenMaker, rememberPeriod)
 		if err != nil {
+
 			app.errorResponse(w, r, http.StatusInternalServerError, fmt.Sprintf("failed to extend session: %v", err))
 			return
 		}
 	}
-
 	// Return the new access token
 	response := envelope{
-		"access_token":  accessToken,
-		"refresh_token": newRefreshToken,
-		"expires_in":    time.Now().Add(rememberPeriod).Unix(),
+		"access_token":            accessToken,
+		"access_token_expires_in": time.Now().Add(app.config.auth.AccessTokenTTL).Unix(),
+	}
+	if newRefreshToken != "" {
+		response["refresh_token"] = newRefreshToken
+		response["refresh_token_expires_in"] = time.Now().Add(app.config.auth.AccessTokenTTL).Unix()
 	}
 
 	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
