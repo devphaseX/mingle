@@ -52,13 +52,12 @@ func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	userId := 1
-
+	user := getAuthUserFromCtx(r)
 	post := &store.Post{
 		Title:   form.Title,
 		Context: form.Content,
 		Tags:    form.Tags,
-		UserID:  int64(userId),
+		UserID:  user.ID,
 	}
 
 	ctx := context.Background()
@@ -122,12 +121,12 @@ func (app *application) getPostByIdHandler(w http.ResponseWriter, r *http.Reques
 //	@Router			/posts/{id} [delete]
 func (app *application) removePostByIdHandler(w http.ResponseWriter, r *http.Request) {
 	var (
-		post         = getPostFromCtx(r)
-		userId int64 = 1
+		post = getPostFromCtx(r)
+		user = getAuthUserFromCtx(r)
 	)
 
 	ctx := context.Background()
-	err := app.store.Posts.DeleteByUser(ctx, post.ID, userId)
+	err := app.store.Posts.DeleteByUser(ctx, post.ID, user.ID)
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrNotFound):

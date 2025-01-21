@@ -52,13 +52,13 @@ func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Reques
 //	@Router			/users/{id}/follow [put]
 func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request) {
 	followedUser := getUserFromCtx(r)
-	var userId int64 = 1
+	authUser := getAuthUserFromCtx(r)
 
 	ctx := context.Background()
 
 	follower := &store.Follower{
 		UserID:     followedUser.ID,
-		FollowerID: userId,
+		FollowerID: authUser.ID,
 	}
 
 	err := app.store.Followers.FollowUser(ctx, follower)
@@ -95,11 +95,11 @@ func (app *application) followUserHandler(w http.ResponseWriter, r *http.Request
 //	@Router			/users/{id}/unfollow [put]
 func (app *application) unfollowUserHandler(w http.ResponseWriter, r *http.Request) {
 	unfollowedUser := getUserFromCtx(r)
-	var userId int64 = 1
+	authUser := getAuthUserFromCtx(r)
 
 	ctx := context.Background()
 
-	err := app.store.Followers.UnFollowUser(ctx, unfollowedUser.ID, userId)
+	err := app.store.Followers.UnFollowUser(ctx, unfollowedUser.ID, authUser.ID)
 
 	if err != nil {
 		switch {

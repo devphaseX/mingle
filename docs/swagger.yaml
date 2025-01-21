@@ -16,6 +16,26 @@ definitions:
     - content
     - title
     type: object
+  main.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  main.signInForm:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 255
+        minLength: 1
+        type: string
+      remember_me:
+        type: boolean
+    required:
+    - email
+    - password
+    type: object
   main.updatePostForm:
     properties:
       content:
@@ -158,6 +178,58 @@ info:
   title: Mingle Socials API
   version: 0.0.1
 paths:
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refreshes an access token using a refresh token provided either
+        in a cookie or in the request body.
+      parameters:
+      - description: Refresh token (if not provided in cookie)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/main.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns a new access token and optionally a new refresh token
+          schema:
+            properties:
+              access_token:
+                type: string
+              access_token_expires_in:
+                type: integer
+              refresh_token:
+                type: string
+              refresh_token_expires_in:
+                type: integer
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Invalid refresh token or session
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Refresh access token
+      tags:
+      - authentication
   /posts:
     post:
       consumes:
@@ -305,6 +377,58 @@ paths:
       summary: Updates a post
       tags:
       - posts
+  /sign-in:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user and returns access and refresh tokens.
+      parameters:
+      - description: Sign-in request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/main.signInForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              access_token:
+                type: string
+              access_token_expires_in:
+                type: integer
+              refresh_token:
+                type: string
+              refresh_token_expires_in:
+                type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Sign in a user
+      tags:
+      - authentication
   /users/{id}:
     get:
       consumes:

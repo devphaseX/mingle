@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 
-const API_URL = import.meta.env["VITE_BACKEND_URL"] || "http://localhost:8080";
+const API_URL =
+  import.meta.env["VITE_BACKEND_URL"] || "http://localhost:8080/v1";
 export const ConfirmationPage = () => {
   const { token = "" } = useParams();
   const redirect = useNavigate();

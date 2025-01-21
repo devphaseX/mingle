@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -135,7 +136,7 @@ func (s *UserStore) GetByEmail(ctx context.Context, email string) (*User, error)
 		&user.LastName,
 		&user.Username,
 		&user.Email,
-		pq.Array(&user.Password.hash),
+		&user.Password.hash,
 		&user.CreatedAt,
 	)
 
@@ -187,6 +188,7 @@ func (s *UserStore) Activate(ctx context.Context, token string) error {
 	return withTx(s.db, ctx, func(tx *sql.Tx) error {
 		user, err := s.getUserFromInvitation(ctx, tx, token)
 
+		fmt.Println(user)
 		if err != nil {
 			return err
 		}

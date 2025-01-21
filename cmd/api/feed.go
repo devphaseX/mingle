@@ -42,8 +42,8 @@ func (app *application) getUserFeedHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var userId int64 = 1
-	posts, metadata, err := app.store.Posts.GetUserFeed(ctx, userId, *fq)
+	user := getAuthUserFromCtx(r)
+	posts, metadata, err := app.store.Posts.GetUserFeed(ctx, user.ID, *fq)
 
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

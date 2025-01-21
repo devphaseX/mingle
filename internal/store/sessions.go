@@ -38,20 +38,20 @@ func (s *SessionStore) CreateSession(ctx context.Context, userID int64, userAgen
 		ExpiresAt:  time.Now().Add(expiry), // 1 week
 	}
 
-	query := `INSERT INTO sessions (id, user_id, user_agent, ip,version, expires_at)
-	          VALUES ($1, $2, $3 , $4, $5)`
+	query := `INSERT INTO sessions (id, user_id, user_agent, ip, expires_at)
+	          VALUES ($1, $2, $3 , $4, $5) RETURNING version`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx,
+	err := s.db.QueryRowContext(ctx,
 		query,
 		session.ID,
 		session.UserID,
 		session.UserAgent,
 		session.IP,
-		session.Version,
 		session.ExpiresAt,
-	)
+	).Scan(&session.Version)
+
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +63,7 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string, ve
 	var session Session
 	var user User
 	var emailVerifiedAt sql.NullTime
+	var maxRenewalDuration sql.NullInt64
 
 	query := `
 		SELECT
@@ -79,7 +80,7 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string, ve
 	row := s.db.QueryRowContext(ctx, query, sessionID, version)
 
 	err := row.Scan(
-		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt, &session.RememberMe, &session.MaxRenewalDuration,
+		&session.ID, &session.UserID, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.LastUsed, &session.CreatedAt, &session.RememberMe, &maxRenewalDuration,
 		&user.ID, &user.FirstName, &user.LastName, &user.Username, &user.Email, &user.IsActive, &emailVerifiedAt, &user.CreatedAt,
 	)
 
@@ -97,6 +98,9 @@ func (s *SessionStore) ValidateSession(ctx context.Context, sessionID string, ve
 		user.EmailVerifiedAt = nil
 	}
 
+	if maxRenewalDuration.Valid {
+		session.MaxRenewalDuration = maxRenewalDuration.Int64
+	}
 	// Check if the session is expired
 	now := time.Now()
 	if now.After(session.ExpiresAt) {
@@ -261,17 +265,18 @@ func (s *SessionStore) ExtendSessionAndGenerateRefreshToken(ctx context.Context,
 		newExpiresAt = maxRenewalTime
 	}
 
-	// Generate a new refresh token
-	newRefreshToken, err := tokenMaker.GenerateRefreshToken(session.ID, rememberPeriod)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate refresh token: %w", err)
-	}
-
+	var version int
 	// Update the session expiration time and refresh token hash in the database
-	updateQuery := `UPDATE sessions SET expires_at = $1, version = version + 1 WHERE id = $2 AND version = $3`
-	_, err = s.db.ExecContext(ctx, updateQuery, newExpiresAt, session.ID, session.Version)
+	updateQuery := `UPDATE sessions SET expires_at = $1, version = version + 1 WHERE id = $2 AND version = $3 RETURNING version`
+	err := s.db.QueryRowContext(ctx, updateQuery, newExpiresAt, session.ID, session.Version).Scan(&version)
 	if err != nil {
 		return "", fmt.Errorf("failed to extend session: %w", err)
+	}
+
+	// Generate a new refresh token
+	newRefreshToken, err := tokenMaker.GenerateRefreshToken(session.ID, version, rememberPeriod)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
 	// Update the session's ExpiresAt field in memory

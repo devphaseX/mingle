@@ -7,12 +7,20 @@ import (
 	"time"
 
 	"github.com/aead/chacha20poly1305"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/o1egl/paseto"
+)
+
+var (
+	ErrExpiredToken          = errors.New("token has expired")
+	ErrInvalidToken          = errors.New("token not valid")
+	ErrInvalidOrExpiredToken = errors.New("token expired or invalid")
+	ErrUnverifiableToken     = errors.New("token is unverifiable")
 )
 
 type TokenMaker interface {
 	GenerateAccessToken(userID int64, sessionID string, expiry time.Duration) (string, error)
-	GenerateRefreshToken(sessionID string, expiry time.Duration) (string, error)
+	GenerateRefreshToken(sessionID string, version int, expiry time.Duration) (string, error)
 	ValidateAccessToken(tokenString string) (*AccessPayload, error)
 	ValidateRefreshToken(tokenString string) (*RefreshPayload, error)
 }
@@ -61,26 +69,62 @@ func NewTokenStore(accessSecret, refreshSecret string) (*TokenStore, error) {
 type AccessPayload struct {
 	UserID    int64  `json:"user_id"`
 	SessionID string `json:"session_id"`
+	jwt.RegisteredClaims
+}
+
+func NewAccessPayload(userId int64, sessionId string, expiry time.Duration) *AccessPayload {
+	return &AccessPayload{
+		UserID:    userId,
+		SessionID: sessionId,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+		},
+	}
+}
+
+func (p *AccessPayload) Valid() error {
+	if time.Now().After(p.ExpiresAt.Time) {
+		return ErrExpiredToken
+	}
+
+	return nil
 }
 
 // Payload for refresh tokens
 type RefreshPayload struct {
 	SessionID string `json:"session_id"`
 	Version   int    `json:"version"`
+	jwt.RegisteredClaims
+}
+
+func NewRefreshPayload(sessionId string, version int, expiry time.Duration) *RefreshPayload {
+	return &RefreshPayload{
+		SessionID: sessionId,
+		Version:   version,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+		},
+	}
+}
+
+func (p *RefreshPayload) Valid() error {
+	if time.Now().After(p.ExpiresAt.Time) {
+		return ErrExpiredToken
+	}
+
+	return nil
 }
 
 // GenerateAccessToken creates a PASETO token for access
 func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string, accessExpiry time.Duration) (string, error) {
-	payload := AccessPayload{
-		UserID:    userID,
-		SessionID: sessionID,
-	}
+	payload := NewAccessPayload(userID, sessionID, accessExpiry)
 
 	// Set token expiration
-	expiration := time.Now().Add(accessExpiry)
 
 	// Create the token
-	token, err := t.paseto.Encrypt(t.accessKey, payload, expiration)
+	token, err := t.paseto.Encrypt(t.accessKey, payload, nil)
 	if err != nil {
 		return "", err
 	}
@@ -89,16 +133,12 @@ func (t *TokenStore) GenerateAccessToken(userID int64, sessionID string, accessE
 }
 
 // GenerateRefreshToken creates a PASETO token for refresh
-func (t *TokenStore) GenerateRefreshToken(sessionID string, refreshExpiry time.Duration) (string, error) {
-	payload := RefreshPayload{
-		SessionID: sessionID,
-	}
-
+func (t *TokenStore) GenerateRefreshToken(sessionID string, version int, refreshExpiry time.Duration) (string, error) {
+	payload := NewRefreshPayload(sessionID, version, refreshExpiry)
 	// Set token expiration
-	expiration := time.Now().Add(refreshExpiry)
 
 	// Create the token
-	token, err := t.paseto.Encrypt(t.refreshKey, payload, expiration)
+	token, err := t.paseto.Encrypt(t.refreshKey, payload, nil)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +153,7 @@ func (t *TokenStore) ValidateAccessToken(tokenString string) (*AccessPayload, er
 	// Decrypt and validate the token
 	err := t.paseto.Decrypt(tokenString, t.accessKey, &payload, nil)
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidToken
 	}
 
 	return &payload, nil
@@ -126,7 +166,7 @@ func (t *TokenStore) ValidateRefreshToken(tokenString string) (*RefreshPayload, 
 	// Decrypt and validate the token
 	err := t.paseto.Decrypt(tokenString, t.refreshKey, &payload, nil)
 	if err != nil {
-		return nil, err
+		return nil, ErrInvalidToken
 	}
 
 	return &payload, nil

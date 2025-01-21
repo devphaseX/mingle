@@ -108,32 +108,45 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 
 }
 
-func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	var refreshRequest struct {
-		RefreshToken string `json:"refresh_token"`
-	}
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+//	@Summary		Refresh access token
+//	@Description	Refreshes an access token using a refresh token provided either in a cookie or in the request body.
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		refreshRequest																									false	"Refresh token (if not provided in cookie)"
+//	@Success		200		{object}	object{access_token=string,access_token_expires_in=int64,refresh_token=string,refresh_token_expires_in=int64}	"Returns a new access token and optionally a new refresh token"
+//	@Failure		400		{object}	object{error=string}																							"Invalid request payload"
+//	@Failure		401		{object}	object{error=string}																							"Invalid refresh token or session"
+//	@Failure		500		{object}	object{error=string}																							"Internal server error"
+//	@Router			/auth/refresh [post]
+func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
+	var form refreshRequest
 
 	// Try to get the refresh token from the cookie
 	refreshTokenCookie, err := r.Cookie("sid")
 	if err == nil && refreshTokenCookie != nil && strings.TrimSpace(refreshTokenCookie.Value) != "" {
-		refreshRequest.RefreshToken = refreshTokenCookie.Value
+		form.RefreshToken = refreshTokenCookie.Value
 	} else {
 		// If the cookie is not available, try to get the refresh token from the JSON body
-		if err := app.readJSON(w, r, &refreshRequest); err != nil {
+		if err := app.readJSON(w, r, &form); err != nil {
 			app.errorResponse(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
 
 	// Validate the refresh token
-	claims, err := app.tokenMaker.ValidateRefreshToken(refreshRequest.RefreshToken)
+	claims, err := app.tokenMaker.ValidateRefreshToken(form.RefreshToken)
 	if err != nil {
 		app.errorResponse(w, r, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-
 	// Validate the session
 	session, user, canExtend, err := app.store.Sessions.ValidateSession(r.Context(), claims.SessionID, claims.Version)
+
 	if err != nil || session == nil {
 		app.errorResponse(w, r, http.StatusUnauthorized, "invalid session")
 		return
@@ -180,6 +193,19 @@ type signInForm struct {
 	RememberMe bool   `json:"remember_me"`
 }
 
+// signInForm godoc
+//
+//	@Summary		Sign in a user
+//	@Description	Authenticates a user and returns access and refresh tokens.
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		signInForm	true	"Sign-in request body"
+//	@Success		200		{object}	object{access_token=string,access_token_expires_in=int64,refresh_token=string,refresh_token_expires_in=int64}
+//	@Failure		400		{object}	object{error=string}
+//	@Failure		404		{object}	object{error=string}
+//	@Failure		500		{object}	object{error=string}
+//	@Router			/sign-in [post]
 func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
 	var form signInForm
 	if err := app.readJSON(w, r, &form); err != nil {
@@ -217,7 +243,6 @@ func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, err := app.store.Sessions.CreateSession(r.Context(), user.ID, "", "", sessionExpiry, form.RememberMe)
-
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -230,12 +255,13 @@ func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshToken, err := app.tokenMaker.GenerateRefreshToken(session.ID, sessionExpiry)
+	refreshToken, err := app.tokenMaker.GenerateRefreshToken(session.ID, session.Version, sessionExpiry)
 
 	response := envelope{
-		"access_token":  accessToken,
-		"expires_in":    time.Now().Add(time.Hour * 1).Unix(),
-		"refresh_token": refreshToken, // Include the new refresh token (if generated)
+		"access_token":             accessToken,
+		"access_token_expires_in":  time.Now().Add(app.config.auth.AccessTokenTTL).Unix(),
+		"refresh_token":            refreshToken, // Include the new refresh token (if generated)
+		"refresh_token_expires_in": sessionExpiry,
 	}
 
 	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
