@@ -8,6 +8,7 @@ import (
 	"github.com/devphaseX/mingle.git/docs"
 	"github.com/devphaseX/mingle.git/internal/mailer"
 	"github.com/devphaseX/mingle.git/internal/store"
+	"github.com/devphaseX/mingle.git/internal/store/cache"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -16,11 +17,12 @@ import (
 )
 
 type application struct {
-	config     config
-	store      store.Storage
-	logger     *zap.SugaredLogger
-	mailer     mailer.Client
-	tokenMaker store.TokenMaker
+	config       config
+	store        store.Storage
+	cacheStorage cache.Storage
+	logger       *zap.SugaredLogger
+	mailer       mailer.Client
+	tokenMaker   store.TokenMaker
 }
 
 type config struct {
@@ -31,6 +33,14 @@ type config struct {
 	frontendURL string
 	mail        mailConfig
 	auth        AuthConfig
+	redisCfg    redisCfg
+}
+
+type redisCfg struct {
+	addr    string
+	pw      string
+	db      int
+	enabled bool
 }
 
 type mailConfig struct {

@@ -31,6 +31,7 @@ var (
 //	@Router			/users/{id} [get]
 func (app *application) getUserByIdHandler(w http.ResponseWriter, r *http.Request) {
 	user := getUserFromCtx(r)
+
 	err := app.writeJSON(w, http.StatusOK, envelope{"user": user}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -127,7 +128,7 @@ func (app *application) userContextMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		user, err := app.store.Users.GetById(r.Context(), userId)
+		user, err := app.getUser(r.Context(), userId)
 
 		if err != nil {
 			switch {

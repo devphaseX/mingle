@@ -8,6 +8,8 @@ import (
 	"github.com/devphaseX/mingle.git/internal/env"
 	"github.com/devphaseX/mingle.git/internal/mailer"
 	"github.com/devphaseX/mingle.git/internal/store"
+	"github.com/devphaseX/mingle.git/internal/store/cache"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	_ "github.com/lib/pq"
@@ -70,6 +72,12 @@ func main() {
 				password: env.GetString("AUTH_BASIC_PASSWORD", ""),
 			},
 		},
+		redisCfg: redisCfg{
+			addr:    env.GetString("REDIS_ADDR", "localhost:6379"),
+			pw:      env.GetString("REDIS_PW", ""),
+			db:      env.GetInt("REDIS_DB", 0),
+			enabled: env.GetBool("REDIS_ENABLED", true),
+		},
 	}
 
 	//Logger
@@ -87,7 +95,15 @@ func main() {
 		logger.Fatal(err)
 	}
 
+	var rdb *redis.Client
+
+	if cfg.redisCfg.enabled {
+		rdb = cache.NewRedisClient(cfg.redisCfg.addr, cfg.redisCfg.pw, cfg.redisCfg.db)
+		logger.Info("redis cache connection established")
+	}
+
 	dbStore := store.NewPostgressStorage(db)
+	cacheStorage := cache.NewRedisStorage(rdb)
 	mailer := mailer.NewMailTrapClient(
 		cfg.mail.mailTrap.fromEmail,
 		cfg.mail.mailTrap.smtpAddr,
@@ -105,11 +121,12 @@ func main() {
 	}
 
 	app := &application{
-		config:     cfg,
-		store:      dbStore,
-		logger:     logger,
-		mailer:     mailer,
-		tokenMaker: tokenMaker,
+		config:       cfg,
+		store:        dbStore,
+		logger:       logger,
+		mailer:       mailer,
+		tokenMaker:   tokenMaker,
+		cacheStorage: cacheStorage,
 	}
 
 	mux := app.mount()

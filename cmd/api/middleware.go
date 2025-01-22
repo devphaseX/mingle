@@ -49,8 +49,7 @@ func (app *application) AuthTokenMiddleware() func(http.Handler) http.Handler {
 				return
 			}
 
-			user, err := app.store.Users.GetById(r.Context(), payload.UserID)
-
+			user, err := app.getUser(r.Context(), payload.UserID)
 			if err != nil {
 				app.authenticationRequiredResponse(w, r, err.Error())
 				return
@@ -144,4 +143,43 @@ func (app *application) BasicAuthMiddleware() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (app *application) getUser(ctx context.Context, userID int64) (*store.User, error) {
+	var user *store.User
+	var err error
+
+	// Check if Redis caching is enabled
+	if app.config.redisCfg.enabled {
+		// Attempt to get the user from the cache
+		user, err = app.cacheStorage.Users.Get(ctx, userID)
+		if err != nil {
+			fmt.Println("failed to fetch from redis")
+			// Log the error, but continue to try the database
+			app.logger.Errorf("Error fetching user from cache: %v", err)
+			return nil, err
+		}
+		if user != nil {
+			// If the user is found in the cache, return it
+			app.logger.Infow("cache hit", "key", "user", "id", userID)
+			return user, nil
+		}
+	}
+
+	// If the user is not found in the cache or caching is disabled, fetch from the database
+	user, err = app.store.Users.GetById(ctx, userID)
+	if err != nil {
+		// If there's an error fetching from the database, return the error
+		return nil, fmt.Errorf("error fetching user from database: %w", err)
+	}
+
+	app.logger.Infof("fetching user %v from the database", userID)
+	err = app.cacheStorage.Users.Set(ctx, user)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// If the user is found in the database, return it
+	return user, nil
 }
