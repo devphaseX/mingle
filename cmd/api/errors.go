@@ -27,6 +27,13 @@ func (app *application) serverErrorResponse(w http.ResponseWriter, r *http.Reque
 	app.errorResponse(w, r, http.StatusInternalServerError, message)
 }
 
+func (app *application) forbiddenErrorResponse(w http.ResponseWriter, r *http.Request) {
+	app.logger.Warnw("forbidden error", "method", r.Method, "path", r.URL.Path)
+
+	message := `You do not have permission to access this resource. Please contact your administrator if you believe this is an error.`
+	app.errorResponse(w, r, http.StatusForbidden, message)
+}
+
 func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request) {
 	app.logger.Errorf("not found error", "method", r.Method, "path", r.URL.Path)
 

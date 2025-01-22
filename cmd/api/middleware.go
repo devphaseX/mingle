@@ -20,6 +20,7 @@ var (
 func (app *application) AuthTokenMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Vary", "Authorization")
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader == "" {
@@ -59,6 +60,42 @@ func (app *application) AuthTokenMiddleware() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func (app *application) checkPostOwnership(role string, next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := getAuthUserFromCtx(r)
+		post := getPostFromCtx(r)
+
+		if post.UserID == user.ID {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		allow, err := app.checkRolePrecedence(r.Context(), user, role)
+
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		if !allow {
+			app.forbiddenErrorResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *application) checkRolePrecedence(ctx context.Context, user *store.User, roleName string) (bool, error) {
+	role, err := app.store.Roles.GetByName(ctx, roleName)
+
+	if err != nil {
+		return false, nil
+	}
+
+	return user.Role.Level >= role.Level, nil
 }
 
 func getAuthUserFromCtx(r *http.Request) *store.User {

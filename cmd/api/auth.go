@@ -41,6 +41,9 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 		LastName:  form.LastName,
 		Username:  form.Username,
 		Email:     form.Email,
+		Role: store.Role{
+			Name: "user",
+		},
 	}
 
 	user.Password.Set(form.Password)
@@ -112,17 +115,17 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-//	@Summary		Refresh access token
-//	@Description	Refreshes an access token using a refresh token provided either in a cookie or in the request body.
-//	@Tags			authentication
-//	@Accept			json
-//	@Produce		json
-//	@Param			request	body		refreshRequest																									false	"Refresh token (if not provided in cookie)"
-//	@Success		200		{object}	object{access_token=string,access_token_expires_in=int64,refresh_token=string,refresh_token_expires_in=int64}	"Returns a new access token and optionally a new refresh token"
-//	@Failure		400		{object}	object{error=string}																							"Invalid request payload"
-//	@Failure		401		{object}	object{error=string}																							"Invalid refresh token or session"
-//	@Failure		500		{object}	object{error=string}																							"Internal server error"
-//	@Router			/auth/refresh [post]
+// @Summary		Refresh access token
+// @Description	Refreshes an access token using a refresh token provided either in a cookie or in the request body.
+// @Tags			authentication
+// @Accept			json
+// @Produce		json
+// @Param			request	body		refreshRequest																									false	"Refresh token (if not provided in cookie)"
+// @Success		200		{object}	object{access_token=string,access_token_expires_in=int64,refresh_token=string,refresh_token_expires_in=int64}	"Returns a new access token and optionally a new refresh token"
+// @Failure		400		{object}	object{error=string}																							"Invalid request payload"
+// @Failure		401		{object}	object{error=string}																							"Invalid refresh token or session"
+// @Failure		500		{object}	object{error=string}																							"Internal server error"
+// @Router			/auth/refresh [post]
 func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
 	var form refreshRequest
 
