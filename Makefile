@@ -19,6 +19,11 @@ confirm:
 # DEVELOPMENT
 # ==================================================================================== #
 
+
+.PHONY: test
+test:
+	@go test -v ./...
+
 .PHONY: run/api
 ## run/api: run the cmd/api application
 run/api:

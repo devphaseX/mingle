@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/devphaseX/mingle.git/docs"
@@ -155,7 +160,39 @@ func (app *application) serve(mux http.Handler) error {
 		Handler:      mux,
 	}
 
+	shutdownError := make(chan error)
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+		s := <-quit
+
+		app.logger.Infow("caught signal", "signal", s.String())
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+
+		defer cancel()
+		err := srv.Shutdown(ctx)
+
+		if err != nil {
+			shutdownError <- err
+		}
+
+		// app.logger.Infow("completing background tasks", "addr", srv.Addr)
+
+	}()
+
 	app.logger.Infow("server has started", "addr", app.config.addr, "env", app.config.env)
 
-	return srv.ListenAndServe()
+	err := srv.ListenAndServe()
+
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	app.logger.Infow("server has stopped", "addr", app.config.addr, "env", app.config.env)
+
+	return nil
 }
