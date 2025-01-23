@@ -32,7 +32,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := Validate.Struct(form); err != nil {
-		app.badRequestResponse(w, r, err)
+		app.failedValidationResponse(w, r, err.FieldErrors())
 		return
 	}
 
@@ -212,6 +212,11 @@ func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
 	var form signInForm
 	if err := app.readJSON(w, r, &form); err != nil {
 		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	if err := Validate.Struct(form); err != nil {
+		app.failedValidationResponse(w, r, err.FieldErrors())
 		return
 	}
 

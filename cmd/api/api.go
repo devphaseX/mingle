@@ -105,6 +105,7 @@ func (app *application) mount() *chi.Mux {
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(app.RateLimiterMiddleware)
 
+	r.MethodNotAllowed(app.methodNotAllowedResponse)
 	r.Route("/v1", func(r chi.Router) {
 		r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)
 

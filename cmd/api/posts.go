@@ -47,8 +47,7 @@ func (app *application) createPostHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := Validate.Struct(form); err != nil {
-		fmt.Println(err)
-		app.badRequestResponse(w, r, err)
+		app.failedValidationResponse(w, r, err.FieldErrors())
 		return
 	}
 
@@ -173,7 +172,7 @@ func (app *application) updatePostHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := Validate.Struct(form); err != nil {
-		app.badRequestResponse(w, r, err)
+		app.failedValidationResponse(w, r, err.FieldErrors())
 		return
 	}
 
