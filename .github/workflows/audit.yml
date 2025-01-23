@@ -20,10 +20,12 @@ jobs:
       - name: Install direnv
         run: sudo apt-get install -y direnv
 
-      - name: Load .envrc
+      - name: Load environment variables
+        env:
+          DB_ADDR: ${{ secrets.DB_ADDR }} # Add other secrets here
         run: |
-          echo 'source .envrc' >> ~/.bashrc
-          source ~/.bashrc
+          echo "DB_ADDR=${DB_ADDR}" >> .envrc
+          direnv allow .
 
       - name: Install staticcheck
         run: go install honnef.co/go/tools/cmd/staticcheck@latest
