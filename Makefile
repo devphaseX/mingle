@@ -22,7 +22,7 @@ confirm:
 
 .PHONY: test
 test:
-	@go test -v ./...
+	@go test -v  -race ./...
 
 .PHONY: run/api
 ## run/api: run the cmd/api application
