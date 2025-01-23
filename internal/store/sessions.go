@@ -132,7 +132,7 @@ func (s *SessionStore) InvalidateSession(ctx context.Context, sessionID string) 
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
-	_, err := s.db.Exec(query, sessionID)
+	_, err := s.db.ExecContext(ctx, query, sessionID)
 	return err
 }
 
@@ -140,7 +140,7 @@ func (s *SessionStore) UpdateLastUsed(ctx context.Context, sessionID string) err
 	query := `UPDATE sessions SET last_used = NOW() WHERE id = $1`
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
-	_, err := s.db.Exec(query, sessionID)
+	_, err := s.db.ExecContext(ctx, query, sessionID)
 	return err
 }
 

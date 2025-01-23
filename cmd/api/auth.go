@@ -144,14 +144,14 @@ func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// Validate the refresh token
 	claims, err := app.tokenMaker.ValidateRefreshToken(form.RefreshToken)
 	if err != nil {
-		app.errorResponse(w, r, http.StatusUnauthorized, "invalid refresh token")
+		app.authenticationRequiredResponse(w, r, "invalid refresh token")
 		return
 	}
 	// Validate the session
 	session, user, canExtend, err := app.store.Sessions.ValidateSession(r.Context(), claims.SessionID, claims.Version)
 
 	if err != nil || session == nil {
-		app.errorResponse(w, r, http.StatusUnauthorized, "invalid session")
+		app.authenticationRequiredResponse(w, r, "invalid session")
 		return
 	}
 
@@ -170,8 +170,7 @@ func (app *application) refreshToken(w http.ResponseWriter, r *http.Request) {
 	if canExtend {
 		newRefreshToken, err = app.store.Sessions.ExtendSessionAndGenerateRefreshToken(r.Context(), session, app.tokenMaker, rememberPeriod)
 		if err != nil {
-
-			app.errorResponse(w, r, http.StatusInternalServerError, fmt.Sprintf("failed to extend session: %v", err))
+			app.serverErrorResponse(w, r, fmt.Errorf("failed to extend session: %v", err))
 			return
 		}
 	}
@@ -259,6 +258,11 @@ func (app *application) signInHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	refreshToken, err := app.tokenMaker.GenerateRefreshToken(session.ID, session.Version, sessionExpiry)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 
 	response := envelope{
 		"access_token":             accessToken,

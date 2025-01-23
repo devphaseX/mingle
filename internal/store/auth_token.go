@@ -50,12 +50,12 @@ func NewTokenStore(accessSecret, refreshSecret string) (*TokenStore, error) {
 
 	// Verify access key length
 	if len(accessSecretByte) != chacha20poly1305.KeySize {
-		return nil, errors.New(fmt.Sprintf("invalid access key size: must be exactly %d bytes", chacha20poly1305.KeySize))
+		return nil, fmt.Errorf("invalid access key size: must be exactly %d bytes", chacha20poly1305.KeySize)
 	}
 
 	// Verify refresh key length
 	if len(refreshSecretByte) != chacha20poly1305.KeySize {
-		return nil, errors.New(fmt.Sprintf("invalid refresh key size: must be exactly %d bytes", chacha20poly1305.KeySize))
+		return nil, fmt.Errorf("invalid refresh key size: must be exactly %d bytes", chacha20poly1305.KeySize)
 	}
 
 	return &TokenStore{

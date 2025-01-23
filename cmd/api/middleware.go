@@ -24,7 +24,7 @@ func (app *application) AuthTokenMiddleware() func(http.Handler) http.Handler {
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader == "" {
-				app.authenticationRequiredResponse(w, r, "authorization header is missing or empty")
+				app.invalidAuthenticationTokenResponse(w, r)
 				return
 			}
 
@@ -38,7 +38,7 @@ func (app *application) AuthTokenMiddleware() func(http.Handler) http.Handler {
 			payload, err := app.tokenMaker.ValidateAccessToken(string(parts[1]))
 
 			if err != nil {
-				app.authenticationRequiredResponse(w, r, "invalid authenication token")
+				app.invalidAuthenticationTokenResponse(w, r)
 				return
 			}
 
@@ -79,7 +79,7 @@ func (app *application) checkPostOwnership(role string, next http.HandlerFunc) h
 		}
 
 		if !allow {
-			app.forbiddenErrorResponse(w, r)
+			app.notPermittedResponse(w, r)
 			return
 		}
 
@@ -116,7 +116,6 @@ func (app *application) BasicAuthMiddleware() func(http.Handler) http.Handler {
 				app.authenticationBasicRequiredResponse(w, r, "authorization header is missing or empty")
 				return
 			}
-
 			parts := strings.Split(authHeader, " ")
 
 			if !(len(parts) == 2 && parts[0] == "Basic") {
