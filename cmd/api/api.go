@@ -12,6 +12,7 @@ import (
 
 	"github.com/devphaseX/mingle.git/docs"
 	"github.com/devphaseX/mingle.git/internal/mailer"
+	"github.com/devphaseX/mingle.git/internal/ratelimiter"
 	"github.com/devphaseX/mingle.git/internal/store"
 	"github.com/devphaseX/mingle.git/internal/store/cache"
 	"github.com/go-chi/chi/v5"
@@ -28,6 +29,7 @@ type application struct {
 	logger       *zap.SugaredLogger
 	mailer       mailer.Client
 	tokenMaker   store.TokenMaker
+	rateLimiter  ratelimiter.RateLimiter
 }
 
 type config struct {
@@ -39,6 +41,7 @@ type config struct {
 	mail        mailConfig
 	auth        AuthConfig
 	redisCfg    redisCfg
+	rateLimiter ratelimiter.Config
 }
 
 type redisCfg struct {
@@ -99,8 +102,8 @@ func (app *application) mount() *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-
 	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(app.RateLimiterMiddleware)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.With(app.BasicAuthMiddleware()).Get("/health", app.healthCheckHandler)

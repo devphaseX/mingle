@@ -7,6 +7,7 @@ import (
 	"github.com/devphaseX/mingle.git/internal/db"
 	"github.com/devphaseX/mingle.git/internal/env"
 	"github.com/devphaseX/mingle.git/internal/mailer"
+	"github.com/devphaseX/mingle.git/internal/ratelimiter"
 	"github.com/devphaseX/mingle.git/internal/store"
 	"github.com/devphaseX/mingle.git/internal/store/cache"
 	"github.com/redis/go-redis/v9"
@@ -78,6 +79,11 @@ func main() {
 			db:      env.GetInt("REDIS_DB", 0),
 			enabled: env.GetBool("REDIS_ENABLED", true),
 		},
+		rateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.GetInt("RATELIMITER_REQUESTS_COUNT", 20),
+			TimeFrame:            time.Second * 5,
+			Enabled:              env.GetBool("RATE_LIMITER_ENABLED", true),
+		},
 	}
 
 	//Logger
@@ -104,6 +110,7 @@ func main() {
 
 	dbStore := store.NewPostgressStorage(db)
 	cacheStorage := cache.NewRedisStorage(rdb)
+	rateLimiter := ratelimiter.NewFixedWindowLimiter(cfg.rateLimiter.RequestsPerTimeFrame, cfg.rateLimiter.TimeFrame)
 	mailer := mailer.NewMailTrapClient(
 		cfg.mail.mailTrap.fromEmail,
 		cfg.mail.mailTrap.smtpAddr,
@@ -127,6 +134,7 @@ func main() {
 		mailer:       mailer,
 		tokenMaker:   tokenMaker,
 		cacheStorage: cacheStorage,
+		rateLimiter:  rateLimiter,
 	}
 
 	mux := app.mount()
